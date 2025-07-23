@@ -1,5 +1,7 @@
 import type { Card } from "@/entities/Card";
 import { Rank, Suit } from "@/types/game";
+import type { CardDisplayState } from "@/types/interaction";
+import { CardTooltip } from "./CardTooltip";
 
 /**
  * CardTheme interface for skinnable card appearances
@@ -35,10 +37,17 @@ export class CardSprite extends Phaser.GameObjects.Container {
   private cardBack!: Phaser.GameObjects.Image;
   private cardFace!: Phaser.GameObjects.Image;
   private highlight!: Phaser.GameObjects.Rectangle;
+  private playabilityBorder!: Phaser.GameObjects.Rectangle;
+  private selectionIndicator!: Phaser.GameObjects.Rectangle;
+  private focusIndicator!: Phaser.GameObjects.Rectangle;
   private isRevealed: boolean = true;
   private isSelectable: boolean = true;
   private isSelected: boolean = false;
   private isHovered: boolean = false;
+  private isFocused: boolean = false;
+  private displayState: CardDisplayState;
+  private tooltip?: CardTooltip;
+  private tooltipTimer?: Phaser.Time.TimerEvent;
 
   // Animation properties
   private originalScale: number = 1;
@@ -53,8 +62,17 @@ export class CardSprite extends Phaser.GameObjects.Container {
     this.theme = theme;
     this.originalScale = 1;
 
+    // Initialize display state
+    this.displayState = {
+      playable: true,
+      selected: false,
+      highlighted: false,
+      dimmed: false,
+    };
+
     this.createCardComponents();
     this.setupInteractivity();
+    this.setupAccessibility();
     this.updateDisplay();
 
     scene.add.existing(this);
@@ -65,6 +83,21 @@ export class CardSprite extends Phaser.GameObjects.Container {
    */
   private createCardComponents(): void {
     const { cardWidth, cardHeight, colors } = this.theme;
+
+    // Focus indicator (for keyboard navigation)
+    this.focusIndicator = this.scene.add.rectangle(0, 0, cardWidth + 8, cardHeight + 8, 0x4a90e2, 0);
+    this.focusIndicator.setStrokeStyle(3, 0x4a90e2);
+    this.add(this.focusIndicator);
+
+    // Playability border (green for playable, red for unplayable)
+    this.playabilityBorder = this.scene.add.rectangle(0, 0, cardWidth + 4, cardHeight + 4, 0x4caf50, 0);
+    this.playabilityBorder.setStrokeStyle(2, 0x4caf50);
+    this.add(this.playabilityBorder);
+
+    // Selection indicator (moves card up and adds glow)
+    this.selectionIndicator = this.scene.add.rectangle(0, 0, cardWidth + 6, cardHeight + 6, 0xffd700, 0);
+    this.selectionIndicator.setStrokeStyle(3, 0xffd700);
+    this.add(this.selectionIndicator);
 
     // Highlight overlay (initially invisible)
     this.highlight = this.scene.add.rectangle(0, 0, cardWidth, cardHeight, colors.highlight, 0);
@@ -122,12 +155,26 @@ export class CardSprite extends Phaser.GameObjects.Container {
     this.setSize(this.theme.cardWidth, this.theme.cardHeight);
     this.setInteractive();
 
-    // Hover effects
-    this.on("pointerover", () => this.onHover(true));
+    // Hover effects with tooltip
+    this.on("pointerover", (pointer: Phaser.Input.Pointer) => this.onHover(true, pointer));
     this.on("pointerout", () => this.onHover(false));
 
-    // Click/tap handling
+    // Click/tap handling with enhanced feedback
     this.on("pointerdown", () => this.onSelect());
+
+    // Long press detection for mobile
+    let longPressTimer: Phaser.Time.TimerEvent;
+    this.on("pointerdown", () => {
+      longPressTimer = this.scene.time.delayedCall(500, () => {
+        this.onLongPress();
+      });
+    });
+
+    this.on("pointerup", () => {
+      if (longPressTimer) {
+        longPressTimer.remove();
+      }
+    });
 
     // Add cursor change on hover
     this.on("pointerover", () => {
@@ -142,60 +189,177 @@ export class CardSprite extends Phaser.GameObjects.Container {
   }
 
   /**
-   * Handle hover state changes
+   * Handle hover state changes with tooltip
    */
-  private onHover(isHovering: boolean): void {
+  private onHover(isHovering: boolean, pointer?: Phaser.Input.Pointer): void {
     if (!this.isSelectable) return;
 
     this.isHovered = isHovering;
+
+    if (isHovering && pointer) {
+      // Show tooltip after delay
+      this.tooltipTimer = this.scene.time.delayedCall(300, () => {
+        this.showTooltip(pointer.worldX, pointer.worldY);
+      });
+
+      // Emit hover start event
+      this.emit("cardHoverStart", { card: this.card, playable: this.displayState.playable });
+    } else {
+      // Hide tooltip immediately
+      this.hideTooltip();
+
+      // Cancel tooltip timer
+      if (this.tooltipTimer) {
+        this.tooltipTimer.remove();
+        this.tooltipTimer = undefined;
+      }
+
+      // Emit hover end event
+      this.emit("cardHoverEnd", { card: this.card });
+    }
+
     this.updateVisualState();
   }
 
   /**
-   * Handle selection
+   * Handle selection with confirm-to-play pattern
    */
   private onSelect(): void {
     if (!this.isSelectable) return;
 
+    // Hide tooltip on selection
+    this.hideTooltip();
+
+    const wasSelected = this.isSelected;
     this.isSelected = !this.isSelected;
+    this.displayState.selected = this.isSelected;
     this.updateVisualState();
 
-    // Emit selection event
-    this.emit("cardSelected", {
-      card: this.card,
-      selected: this.isSelected,
-      sprite: this,
-    });
+    // Emit appropriate event based on selection state
+    if (this.isSelected && !wasSelected) {
+      this.emit("cardSelected", {
+        card: this.card,
+        action: "select",
+        playable: this.displayState.playable,
+        reason: this.displayState.reason,
+        sprite: this,
+      });
+    } else if (!this.isSelected && wasSelected) {
+      this.emit("cardCancelled", {
+        card: this.card,
+        action: "cancel",
+        sprite: this,
+      });
+    } else if (this.isSelected && wasSelected) {
+      // Double-click/tap to confirm
+      this.emit("cardConfirmed", {
+        card: this.card,
+        action: "confirm",
+        playable: this.displayState.playable,
+        sprite: this,
+      });
+    }
   }
 
   /**
-   * Update visual state based on hover/selection
+   * Update visual state based on display state and interactions
    */
   private updateVisualState(): void {
+    // Safety check: ensure scene is still valid
+    if (!this.scene || !this.scene.tweens) {
+      return;
+    }
+
+    // Cancel any existing animations
+    this.scene.tweens.killTweensOf(this);
+    this.scene.tweens.killTweensOf(this.highlight);
+    this.scene.tweens.killTweensOf(this.playabilityBorder);
+    this.scene.tweens.killTweensOf(this.selectionIndicator);
+    this.scene.tweens.killTweensOf(this.focusIndicator);
+
     let targetScale = this.originalScale;
+    let targetY = 0;
     let highlightAlpha = 0;
+    let playabilityAlpha = 0;
+    let selectionAlpha = 0;
+    let focusAlpha = 0;
+    let cardAlpha = 1;
+
+    // Apply visual feedback based on state
+    if (this.displayState.dimmed) {
+      cardAlpha = 0.6;
+      playabilityAlpha = 0.8;
+      this.playabilityBorder.setStrokeStyle(2, 0xf44336); // Red for unplayable
+    } else if (this.displayState.playable) {
+      playabilityAlpha = this.isHovered ? 0.6 : 0.3;
+      this.playabilityBorder.setStrokeStyle(2, 0x4caf50); // Green for playable
+    }
 
     if (this.isSelected) {
       targetScale = this.selectedScale;
-      highlightAlpha = 0.3;
+      targetY = -10; // Move card up when selected
+      selectionAlpha = 0.8;
+      highlightAlpha = 0.2;
     } else if (this.isHovered) {
       targetScale = this.hoverScale;
       highlightAlpha = 0.15;
     }
 
-    // Smooth scale animation
+    if (this.isFocused) {
+      focusAlpha = 0.7;
+    }
+
+    // Smooth animations with staggered timing for better visual feedback
+    // Additional safety check before creating animations
+    if (!this.scene || !this.scene.tweens) {
+      return;
+    }
+
     this.scene.tweens.add({
       targets: this,
       scaleX: targetScale,
       scaleY: targetScale,
+      y: this.y + targetY,
       duration: this.animationDuration,
-      ease: "Power2",
+      ease: "Back.easeOut",
     });
 
     // Highlight animation
     this.scene.tweens.add({
       targets: this.highlight,
       alpha: highlightAlpha,
+      duration: this.animationDuration,
+      ease: "Power2",
+    });
+
+    // Playability border animation
+    this.scene.tweens.add({
+      targets: this.playabilityBorder,
+      alpha: playabilityAlpha,
+      duration: this.animationDuration,
+      ease: "Power2",
+    });
+
+    // Selection indicator animation
+    this.scene.tweens.add({
+      targets: this.selectionIndicator,
+      alpha: selectionAlpha,
+      duration: this.animationDuration,
+      ease: "Power2",
+    });
+
+    // Focus indicator animation
+    this.scene.tweens.add({
+      targets: this.focusIndicator,
+      alpha: focusAlpha,
+      duration: this.animationDuration,
+      ease: "Power2",
+    });
+
+    // Card face alpha for dimming effect
+    this.scene.tweens.add({
+      targets: [this.cardFace, this.cardBack],
+      alpha: cardAlpha,
       duration: this.animationDuration,
       ease: "Power2",
     });
@@ -274,7 +438,126 @@ export class CardSprite extends Phaser.GameObjects.Container {
 
   public setSelected(selected: boolean): void {
     this.isSelected = selected;
+    this.displayState.selected = selected;
     this.updateVisualState();
+  }
+
+  /**
+   * Set the display state for the card
+   */
+  public setDisplayState(state: CardDisplayState): void {
+    this.displayState = { ...state };
+    this.isSelected = state.selected;
+    this.updateVisualState();
+  }
+
+  /**
+   * Set playability with enhanced visual feedback
+   */
+  public setPlayable(playable: boolean, reason?: string): void {
+    this.displayState.playable = playable;
+    this.displayState.dimmed = !playable;
+    this.displayState.reason = reason;
+    this.updateVisualState();
+  }
+
+  /**
+   * Set keyboard focus state
+   */
+  public setFocused(focused: boolean): void {
+    this.isFocused = focused;
+    this.updateVisualState();
+
+    if (focused) {
+      this.emit("cardFocused", { card: this.card, sprite: this });
+    }
+  }
+
+  /**
+   * Show tooltip at specified position
+   */
+  public showTooltip(x: number, y: number): void {
+    if (this.tooltip) {
+      this.hideTooltip();
+    }
+
+    this.tooltip = CardTooltip.getFromPool(this.scene);
+
+    // Emit event to request fresh playability status for tooltip
+    // This ensures tooltip always shows current game state, not cached state
+    this.emit("tooltipRequested", {
+      card: this.card,
+      x,
+      y,
+      tooltip: this.tooltip,
+      sprite: this,
+    });
+  }
+
+  /**
+   * Hide tooltip
+   */
+  public hideTooltip(): void {
+    if (this.tooltip) {
+      this.tooltip.hide();
+      this.tooltip = undefined;
+    }
+  }
+
+  /**
+   * Handle long press for mobile touch
+   */
+  private onLongPress(): void {
+    if (!this.isSelectable) return;
+
+    // Show context info on long press
+    this.emit("cardLongPress", {
+      card: this.card,
+      playable: this.displayState.playable,
+      reason: this.displayState.reason,
+      sprite: this,
+    });
+  }
+
+  /**
+   * Setup accessibility attributes
+   */
+  private setupAccessibility(): void {
+    // Set ARIA attributes for screen readers
+    this.setData("role", "button");
+    this.setData("tabindex", this.isSelectable ? "0" : "-1");
+    this.updateAccessibilityLabel();
+  }
+
+  /**
+   * Update accessibility label based on current state
+   */
+  private updateAccessibilityLabel(): void {
+    let label = `Card ${this.card.displayName}. `;
+
+    if (this.displayState.playable) {
+      label += "Playable. ";
+    } else {
+      label += "Cannot play. ";
+      if (this.displayState.reason) {
+        label += `${this.displayState.reason}. `;
+      }
+    }
+
+    if (this.isSelected) {
+      label += "Selected. Press Enter to confirm or Escape to cancel.";
+    } else {
+      label += "Press Enter to select.";
+    }
+
+    this.setData("aria-label", label);
+  }
+
+  /**
+   * Get current display state
+   */
+  public getDisplayState(): CardDisplayState {
+    return { ...this.displayState };
   }
 
   public setRevealed(revealed: boolean): void {
@@ -311,6 +594,11 @@ export class CardSprite extends Phaser.GameObjects.Container {
 
   public playFlipAnimation(duration: number = 300): Promise<void> {
     return new Promise((resolve) => {
+      if (!this.scene || !this.scene.tweens) {
+        resolve();
+        return;
+      }
+
       this.scene.tweens.add({
         targets: this,
         scaleX: 0,
@@ -319,6 +607,11 @@ export class CardSprite extends Phaser.GameObjects.Container {
         onComplete: () => {
           this.isRevealed = !this.isRevealed;
           this.updateDisplay();
+
+          if (!this.scene || !this.scene.tweens) {
+            resolve();
+            return;
+          }
 
           this.scene.tweens.add({
             targets: this,
@@ -338,6 +631,11 @@ export class CardSprite extends Phaser.GameObjects.Container {
     this.setAlpha(0);
 
     return new Promise((resolve) => {
+      if (!this.scene || !this.scene.tweens) {
+        resolve();
+        return;
+      }
+
       this.scene.tweens.add({
         targets: this,
         x: this.x,
