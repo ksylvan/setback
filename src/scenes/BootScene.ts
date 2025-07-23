@@ -17,6 +17,13 @@ export class BootScene extends Scene {
   }
 
   create(): void {
+    console.log("🎴 BootScene created - loading complete");
+    console.log("🎴 Total textures loaded:", Object.keys(this.textures.list).length);
+    console.log("🎴 Sample card textures loaded:");
+    console.log("🎴   card_hearts_A exists:", this.textures.exists("card_hearts_A"));
+    console.log("🎴   card_clubs_02 exists:", this.textures.exists("card_clubs_02"));
+    console.log("🎴   card_joker_red exists:", this.textures.exists("card_joker_red"));
+
     // Boot complete, go to menu
     this.scene.start("MenuScene");
   }
@@ -46,81 +53,84 @@ export class BootScene extends Scene {
   }
 
   private loadCardAssets(): void {
+    console.log("🎴 BootScene: Loading card assets...");
     // Load Kenney's beautiful card sprites
     // Card backs for different themes
-    this.load.image("card-back-blue", "src/assets/images/cards/card_back.png");
-    this.load.image("card-back-red", "src/assets/images/cards/card_back.png");
-    this.load.image("card-back-green", "src/assets/images/cards/card_back.png");
-    this.load.image("cardBack_classic", "src/assets/images/cards/cardBack_classic.png");
-    this.load.image("cardBack_vintage", "src/assets/images/cards/cardBack_vintage.png");
-    this.load.image("cardBack_modern", "src/assets/images/cards/cardBack_modern.png");
-    this.load.image("cardBack_neon", "src/assets/images/cards/cardBack_neon.png");
-    this.load.image("cardBack_contrast", "src/assets/images/cards/cardBack_contrast.png");
+    this.load.image("card-back-blue", "assets/images/cards/card_back.png");
+    this.load.image("card-back-red", "assets/images/cards/card_back.png");
+    this.load.image("card-back-green", "assets/images/cards/card_back.png");
+    this.load.image("cardBack_classic", "assets/images/cards/cardBack_classic.png");
+    this.load.image("cardBack_vintage", "assets/images/cards/cardBack_vintage.png");
+    this.load.image("cardBack_modern", "assets/images/cards/cardBack_modern.png");
+    this.load.image("cardBack_neon", "assets/images/cards/cardBack_neon.png");
+    this.load.image("cardBack_contrast", "assets/images/cards/cardBack_contrast.png");
 
     // Hearts (red) - Load test cards for quality comparison
-    this.load.image("card_hearts_A", "src/assets/images/cards/card_hearts_A.png");
-    this.load.image("card_hearts_02", "src/assets/images/cards/card_hearts_02.png");
-    this.load.image("card_hearts_03", "src/assets/images/cards/card_hearts_03.png");
+    this.load.image("card_hearts_A", "assets/images/cards/card_hearts_A.png");
+    this.load.image("card_hearts_02", "assets/images/cards/card_hearts_02.png");
+    this.load.image("card_hearts_03", "assets/images/cards/card_hearts_03.png");
 
-    this.load.image("card_hearts_04", "src/assets/images/cards/card_hearts_04.png");
-    this.load.image("card_hearts_05", "src/assets/images/cards/card_hearts_05.png");
-    this.load.image("card_hearts_06", "src/assets/images/cards/card_hearts_06.png");
-    this.load.image("card_hearts_07", "src/assets/images/cards/card_hearts_07.png");
-    this.load.image("card_hearts_08", "src/assets/images/cards/card_hearts_08.png");
-    this.load.image("card_hearts_09", "src/assets/images/cards/card_hearts_09.png");
-    this.load.image("card_hearts_10", "src/assets/images/cards/card_hearts_10.png");
-    this.load.image("card_hearts_J", "src/assets/images/cards/card_hearts_J.png");
-    this.load.image("card_hearts_Q", "src/assets/images/cards/card_hearts_Q.png");
-    this.load.image("card_hearts_K", "src/assets/images/cards/card_hearts_K.png");
+    this.load.image("card_hearts_04", "assets/images/cards/card_hearts_04.png");
+    this.load.image("card_hearts_05", "assets/images/cards/card_hearts_05.png");
+    this.load.image("card_hearts_06", "assets/images/cards/card_hearts_06.png");
+    this.load.image("card_hearts_07", "assets/images/cards/card_hearts_07.png");
+    this.load.image("card_hearts_08", "assets/images/cards/card_hearts_08.png");
+    this.load.image("card_hearts_09", "assets/images/cards/card_hearts_09.png");
+    this.load.image("card_hearts_10", "assets/images/cards/card_hearts_10.png");
+    this.load.image("card_hearts_J", "assets/images/cards/card_hearts_J.png");
+    this.load.image("card_hearts_Q", "assets/images/cards/card_hearts_Q.png");
+    this.load.image("card_hearts_K", "assets/images/cards/card_hearts_K.png");
 
     // Diamonds (red)
-    this.load.image("card_diamonds_A", "src/assets/images/cards/card_diamonds_A.png");
-    this.load.image("card_diamonds_02", "src/assets/images/cards/card_diamonds_02.png");
-    this.load.image("card_diamonds_03", "src/assets/images/cards/card_diamonds_03.png");
-    this.load.image("card_diamonds_04", "src/assets/images/cards/card_diamonds_04.png");
-    this.load.image("card_diamonds_05", "src/assets/images/cards/card_diamonds_05.png");
-    this.load.image("card_diamonds_06", "src/assets/images/cards/card_diamonds_06.png");
-    this.load.image("card_diamonds_07", "src/assets/images/cards/card_diamonds_07.png");
-    this.load.image("card_diamonds_08", "src/assets/images/cards/card_diamonds_08.png");
-    this.load.image("card_diamonds_09", "src/assets/images/cards/card_diamonds_09.png");
-    this.load.image("card_diamonds_10", "src/assets/images/cards/card_diamonds_10.png");
-    this.load.image("card_diamonds_J", "src/assets/images/cards/card_diamonds_J.png");
-    this.load.image("card_diamonds_Q", "src/assets/images/cards/card_diamonds_Q.png");
-    this.load.image("card_diamonds_K", "src/assets/images/cards/card_diamonds_K.png");
+    this.load.image("card_diamonds_A", "assets/images/cards/card_diamonds_A.png");
+    this.load.image("card_diamonds_02", "assets/images/cards/card_diamonds_02.png");
+    this.load.image("card_diamonds_03", "assets/images/cards/card_diamonds_03.png");
+    this.load.image("card_diamonds_04", "assets/images/cards/card_diamonds_04.png");
+    this.load.image("card_diamonds_05", "assets/images/cards/card_diamonds_05.png");
+    this.load.image("card_diamonds_06", "assets/images/cards/card_diamonds_06.png");
+    this.load.image("card_diamonds_07", "assets/images/cards/card_diamonds_07.png");
+    this.load.image("card_diamonds_08", "assets/images/cards/card_diamonds_08.png");
+    this.load.image("card_diamonds_09", "assets/images/cards/card_diamonds_09.png");
+    this.load.image("card_diamonds_10", "assets/images/cards/card_diamonds_10.png");
+    this.load.image("card_diamonds_J", "assets/images/cards/card_diamonds_J.png");
+    this.load.image("card_diamonds_Q", "assets/images/cards/card_diamonds_Q.png");
+    this.load.image("card_diamonds_K", "assets/images/cards/card_diamonds_K.png");
 
     // Clubs (black)
-    this.load.image("card_clubs_A", "src/assets/images/cards/card_clubs_A.png");
-    this.load.image("card_clubs_02", "src/assets/images/cards/card_clubs_02.png");
-    this.load.image("card_clubs_03", "src/assets/images/cards/card_clubs_03.png");
-    this.load.image("card_clubs_04", "src/assets/images/cards/card_clubs_04.png");
-    this.load.image("card_clubs_05", "src/assets/images/cards/card_clubs_05.png");
-    this.load.image("card_clubs_06", "src/assets/images/cards/card_clubs_06.png");
-    this.load.image("card_clubs_07", "src/assets/images/cards/card_clubs_07.png");
-    this.load.image("card_clubs_08", "src/assets/images/cards/card_clubs_08.png");
-    this.load.image("card_clubs_09", "src/assets/images/cards/card_clubs_09.png");
-    this.load.image("card_clubs_10", "src/assets/images/cards/card_clubs_10.png");
-    this.load.image("card_clubs_J", "src/assets/images/cards/card_clubs_J.png");
-    this.load.image("card_clubs_Q", "src/assets/images/cards/card_clubs_Q.png");
-    this.load.image("card_clubs_K", "src/assets/images/cards/card_clubs_K.png");
+    this.load.image("card_clubs_A", "assets/images/cards/card_clubs_A.png");
+    this.load.image("card_clubs_02", "assets/images/cards/card_clubs_02.png");
+    this.load.image("card_clubs_03", "assets/images/cards/card_clubs_03.png");
+    this.load.image("card_clubs_04", "assets/images/cards/card_clubs_04.png");
+    this.load.image("card_clubs_05", "assets/images/cards/card_clubs_05.png");
+    this.load.image("card_clubs_06", "assets/images/cards/card_clubs_06.png");
+    this.load.image("card_clubs_07", "assets/images/cards/card_clubs_07.png");
+    this.load.image("card_clubs_08", "assets/images/cards/card_clubs_08.png");
+    this.load.image("card_clubs_09", "assets/images/cards/card_clubs_09.png");
+    this.load.image("card_clubs_10", "assets/images/cards/card_clubs_10.png");
+    this.load.image("card_clubs_J", "assets/images/cards/card_clubs_J.png");
+    this.load.image("card_clubs_Q", "assets/images/cards/card_clubs_Q.png");
+    this.load.image("card_clubs_K", "assets/images/cards/card_clubs_K.png");
 
     // Spades (black)
-    this.load.image("card_spades_A", "src/assets/images/cards/card_spades_A.png");
-    this.load.image("card_spades_02", "src/assets/images/cards/card_spades_02.png");
-    this.load.image("card_spades_03", "src/assets/images/cards/card_spades_03.png");
-    this.load.image("card_spades_04", "src/assets/images/cards/card_spades_04.png");
-    this.load.image("card_spades_05", "src/assets/images/cards/card_spades_05.png");
-    this.load.image("card_spades_06", "src/assets/images/cards/card_spades_06.png");
-    this.load.image("card_spades_07", "src/assets/images/cards/card_spades_07.png");
-    this.load.image("card_spades_08", "src/assets/images/cards/card_spades_08.png");
-    this.load.image("card_spades_09", "src/assets/images/cards/card_spades_09.png");
-    this.load.image("card_spades_10", "src/assets/images/cards/card_spades_10.png");
-    this.load.image("card_spades_J", "src/assets/images/cards/card_spades_J.png");
-    this.load.image("card_spades_Q", "src/assets/images/cards/card_spades_Q.png");
-    this.load.image("card_spades_K", "src/assets/images/cards/card_spades_K.png");
+    this.load.image("card_spades_A", "assets/images/cards/card_spades_A.png");
+    this.load.image("card_spades_02", "assets/images/cards/card_spades_02.png");
+    this.load.image("card_spades_03", "assets/images/cards/card_spades_03.png");
+    this.load.image("card_spades_04", "assets/images/cards/card_spades_04.png");
+    this.load.image("card_spades_05", "assets/images/cards/card_spades_05.png");
+    this.load.image("card_spades_06", "assets/images/cards/card_spades_06.png");
+    this.load.image("card_spades_07", "assets/images/cards/card_spades_07.png");
+    this.load.image("card_spades_08", "assets/images/cards/card_spades_08.png");
+    this.load.image("card_spades_09", "assets/images/cards/card_spades_09.png");
+    this.load.image("card_spades_10", "assets/images/cards/card_spades_10.png");
+    this.load.image("card_spades_J", "assets/images/cards/card_spades_J.png");
+    this.load.image("card_spades_Q", "assets/images/cards/card_spades_Q.png");
+    this.load.image("card_spades_K", "assets/images/cards/card_spades_K.png");
 
     // Jokers
-    this.load.image("card_joker_red", "src/assets/images/cards/card_joker_red.png");
-    this.load.image("card_joker_black", "src/assets/images/cards/card_joker_black.png");
+    this.load.image("card_joker_red", "assets/images/cards/card_joker_red.png");
+    this.load.image("card_joker_black", "assets/images/cards/card_joker_black.png");
+
+    console.log("🎴 BootScene: Finished setting up card asset loading");
   }
 
   private createFallbackCardTextures(): void {

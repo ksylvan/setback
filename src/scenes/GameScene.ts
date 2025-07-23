@@ -28,6 +28,8 @@ export class GameScene extends Scene {
   private trickArea!: Phaser.GameObjects.Container;
   private playedCardSprites: { [playerId: string]: CardSprite } = {};
   private isHandCompleting: boolean = false;
+  private completedHandData: { tricksPlayed: number; trumpSuit: string } | null = null;
+  private handCompleteTimers: Phaser.Time.TimerEvent[] = [];
 
   constructor() {
     super({ key: "GameScene" });
@@ -61,7 +63,9 @@ export class GameScene extends Scene {
     this.gameManager.on("trumpEstablished", this.onTrumpEstablished.bind(this));
     this.gameManager.on("invalidPlay", this.onInvalidPlay.bind(this));
     this.gameManager.on("trickComplete", this.onTrickComplete.bind(this));
-    this.gameManager.on("handComplete", this.onHandComplete.bind(this));
+    this.gameManager.on("handCompleted", this.onHandComplete.bind(this));
+    this.gameManager.on("nextHandStarted", this.onNextHandStarted.bind(this));
+    this.gameManager.on("deckReshuffled", this.onDeckReshuffled.bind(this));
   }
 
   private createUI(): void {
@@ -197,6 +201,14 @@ export class GameScene extends Scene {
     const humanPlayer = gameState.players.find((p) => p.isHuman);
 
     if (!humanPlayer) return;
+
+    console.log(`🎯 UPDATE HAND: Human player has ${humanPlayer.hand.length} cards`);
+    console.log(
+      `🎯 Hand cards:`,
+      humanPlayer.hand.map((c) => c.displayName)
+    );
+    console.log(`🎯 Game phase: ${gameState.gamePhase}`);
+    console.log(`🎯 Current player: ${gameState.players[gameState.currentHand.currentPlayerIndex].name}`);
 
     // Display human player's hand using CardSprite
     const cardSpacing = 100;
@@ -368,11 +380,22 @@ export class GameScene extends Scene {
   private onCardPlayed(event: any): void {
     const player = this.gameManager.getPlayer(event.playerId);
     this.statusText.setText(`${player?.name} played ${event.card.displayName}`);
-    this.highlightCurrentPlayer();
 
     // Add the played card to the trick area
     this.addCardToTrick(player, event.card);
     this.updateGameInfo();
+
+    // Check if this is the 4th card of the trick
+    const gameState = this.gameManager.getGameState();
+    const currentTrick = gameState.currentHand.currentTrick;
+
+    if (currentTrick && currentTrick.cards.length < 4) {
+      // Not the final card, highlight next player normally
+      this.highlightCurrentPlayer();
+    } else {
+      // This is the 4th card - let the trick complete event handle highlighting
+      console.log("🎯 4th card played, waiting for trick completion");
+    }
   }
 
   private onTrumpEstablished(trumpSuit: any): void {
@@ -384,36 +407,104 @@ export class GameScene extends Scene {
     this.statusText.setText(`${player?.name}: ${event.reason}`);
   }
 
-  private onTrickComplete(event: any): void {
-    const winner = this.gameManager.getPlayer(event.winnerId);
+  private onTrickComplete(trick: any): void {
+    const winner = this.gameManager.getPlayer(trick.winner);
+    console.log(`🎯 TRICK COMPLETE: ${winner?.name} wins! Trick has ${trick.cards.length} cards`);
+    console.log(`🎯 Current playedCardSprites count:`, Object.keys(this.playedCardSprites).length);
+
     this.statusText.setText(`${winner?.name} wins the trick!`);
 
-    // Clear the trick after showing the result, then continue game
-    this.time.delayedCall(2000, () => {
-      this.clearTrick();
+    // Highlight the trick winner
+    this.highlightTrickWinner(winner);
 
-      // Only continue if this isn't the final trick (hand completing)
-      if (!this.isHandCompleting) {
+    // Clear the trick after a brief display, then continue immediately
+    // This prevents the race condition with new trick starting
+    console.log("🎯 Clearing trick after brief display to prevent UI desync");
+    this.time.delayedCall(800, () => {
+      this.clearTrick();
+      console.log("🎯 Trick cleared, continuing game");
+
+      // Only continue if this isn't the final trick AND we're still in playing phase
+      const gameState = this.gameManager.getGameState();
+      const shouldContinue = !this.isHandCompleting && gameState.gamePhase === "playing";
+
+      console.log("🎯 Should continue after trick?", shouldContinue);
+      console.log("🎯   isHandCompleting:", this.isHandCompleting);
+      console.log("🎯   gamePhase:", gameState.gamePhase);
+
+      if (shouldContinue) {
         this.continueAfterTrick();
+      } else {
+        console.log("🎯 Skipping continueAfterTrick - wrong phase or hand completing");
       }
     });
   }
 
-  private onHandComplete(_event: any): void {
+  private onHandComplete(_completedHand: any): void {
     // Set flag to indicate hand is completing
     this.isHandCompleting = true;
 
     console.log("🏁 Hand complete event received");
 
+    // Capture the completed hand data before it gets reset
+    const gameState = this.gameManager.getGameState();
+    this.completedHandData = {
+      tricksPlayed: gameState.currentHand.tricks.length,
+      trumpSuit: gameState.currentHand.trumpSuit || "undefined",
+    };
+
+    console.log("🏁 Captured completed hand data:", this.completedHandData);
+
     // Let the final trick display for full duration, then handle hand completion
-    this.time.delayedCall(2500, () => {
+    const timer1 = this.time.delayedCall(2500, () => {
       this.statusText.setText("Hand complete - calculating scores...");
 
       // Show hand completion UI after additional delay
-      this.time.delayedCall(3000, () => {
+      const timer2 = this.time.delayedCall(3000, () => {
         this.showHandCompleteUI();
         this.isHandCompleting = false;
       });
+      this.handCompleteTimers.push(timer2);
+    });
+    this.handCompleteTimers.push(timer1);
+  }
+
+  private onNextHandStarted(_gameState: any): void {
+    console.log("🔄 Next hand started event received");
+    this.isHandCompleting = false;
+
+    // Cancel any pending hand complete timers specifically
+    this.handCompleteTimers.forEach((timer) => {
+      if (timer && !timer.hasDispatched) {
+        timer.remove();
+        console.log("🔄 Cancelled pending hand complete timer");
+      }
+    });
+    this.handCompleteTimers = [];
+
+    // Cancel any pending trick continuation timers to prevent race conditions
+    this.time.removeAllEvents();
+
+    // Clear any existing UI elements from previous hand
+    this.clearTrick();
+
+    // Update the display with new hand state
+    this.updateHand();
+    this.updateGameInfo();
+
+    // Reset status
+    this.statusText.setText("New hand starting - bidding will begin...");
+  }
+
+  private onDeckReshuffled(_data: any): void {
+    console.log("🔀 Deck reshuffled event received");
+
+    // Show reshuffle notification to players
+    this.statusText.setText("🔀 Deck reshuffled - not enough cards remaining");
+
+    // Brief pause to let players see the reshuffle message
+    this.time.delayedCall(2000, () => {
+      this.statusText.setText("New hand starting - bidding will begin...");
     });
   }
 
@@ -421,7 +512,11 @@ export class GameScene extends Scene {
     const gameState = this.gameManager.getGameState();
     const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
 
-    console.log("🎯 Continuing after trick, current player:", currentPlayer.name);
+    console.log("🎯 CONTINUE AFTER TRICK - current player:", currentPlayer.name);
+    console.log("🎯 Current player index:", gameState.currentHand.currentPlayerIndex);
+    console.log("🎯 Current player ID:", currentPlayer.id);
+    console.log("🎯 Current player isHuman:", currentPlayer.isHuman);
+    console.log("🎯 Current player hand size:", currentPlayer.hand.length);
 
     // Check if we're still in playing phase and there are more tricks to play
     if (gameState.gamePhase === "playing") {
@@ -432,6 +527,13 @@ export class GameScene extends Scene {
         "🎯 Cards per player:",
         gameState.players.map((p) => `${p.name}: ${p.hand.length}`)
       );
+
+      // CRITICAL CHECK: If current player has no cards, something is wrong
+      if (currentPlayer.hand.length === 0) {
+        console.error("🚨 CRITICAL BUG: Current player has no cards but game continues!");
+        this.statusText.setText("⚠️ Game error: Player has no cards");
+        return;
+      }
 
       if (totalCardsRemaining > 0) {
         // Start next trick
@@ -466,6 +568,18 @@ export class GameScene extends Scene {
     // Highlight current player
     if (this.playerTexts[currentPlayer.id]) {
       this.playerTexts[currentPlayer.id].setStyle({ backgroundColor: "#6a4c93" });
+    }
+  }
+
+  private highlightTrickWinner(winner: any): void {
+    // Reset all player text styles
+    Object.values(this.playerTexts).forEach((text) => {
+      text.setStyle({ backgroundColor: "#444444" });
+    });
+
+    // Highlight trick winner with a special color
+    if (winner && this.playerTexts[winner.id]) {
+      this.playerTexts[winner.id].setStyle({ backgroundColor: "#FFD700" });
     }
   }
 
@@ -717,10 +831,22 @@ export class GameScene extends Scene {
     // Get current card count before adding new card
     const currentCardCount = Object.keys(this.playedCardSprites).length;
 
+    console.log(`🎯 Adding card to trick: ${player.name} plays ${card.displayName}`);
+    console.log(`🎯 Current cards in trick area: ${currentCardCount}`);
+    console.log(
+      `🎯 Existing cards:`,
+      Object.keys(this.playedCardSprites).map((playerId) => {
+        const p = this.gameManager.getPlayer(playerId);
+        return `${p?.name}: ${this.playedCardSprites[playerId] ? "has card" : "no card"}`;
+      })
+    );
+
     // Always prevent more than 4 cards - this is the main protection
     if (currentCardCount >= 4) {
-      console.warn("⚠️ Attempted to add 5th card to trick area, ignoring");
-      return;
+      console.warn("⚠️ Attempted to add 5th card to trick area - clearing and retrying");
+      this.clearTrick(); // Force clear the UI
+      console.log("🎯 Force cleared trick area due to desync");
+      // Don't return - let it proceed to add the card now that area is clear
     }
 
     // Position cards based on player position
@@ -761,9 +887,14 @@ export class GameScene extends Scene {
   }
 
   private clearTrick(): void {
+    console.log("🎯 CLEARING TRICK - removing all played cards");
+    console.log(`🎯 Cards being removed:`, Object.keys(this.playedCardSprites).length);
+
     // Remove all played cards from the trick area
     Object.values(this.playedCardSprites).forEach((sprite) => sprite.destroy());
     this.playedCardSprites = {};
+
+    console.log("🎯 Trick cleared, playedCardSprites reset");
   }
 
   private updateBiddingDisplay(): void {
@@ -834,6 +965,8 @@ export class GameScene extends Scene {
   private onCardSelected(card: any): void {
     const gameState = this.gameManager.getGameState();
 
+    console.log("🎯 CARD SELECTED:", card.displayName);
+
     // Only allow card play during playing phase and if it's human player's turn
     if (gameState.gamePhase !== "playing") {
       this.statusText.setText("❌ Not in playing phase - wait for bidding to complete");
@@ -845,6 +978,19 @@ export class GameScene extends Scene {
       this.statusText.setText("❌ Not your turn - wait for other players");
       return;
     }
+
+    // CRITICAL CHECK: Verify player actually has cards
+    if (currentPlayer.hand.length === 0) {
+      console.error("🚨 CRITICAL: Player trying to play card but has no cards!");
+      this.statusText.setText("⚠️ Error: You have no cards to play");
+      return;
+    }
+
+    console.log(`🎯 Player has ${currentPlayer.hand.length} cards available`);
+    console.log(
+      `🎯 Player cards:`,
+      currentPlayer.hand.map((c) => c.displayName)
+    );
 
     // Enhanced validation and feedback
     const success = this.gameManager.playCard(currentPlayer.id, card.id);
@@ -920,15 +1066,8 @@ export class GameScene extends Scene {
       return;
     }
 
-    let cardToPlay = currentPlayer.hand[0]; // Default to first card
-
-    // If there's a lead suit, try to follow it
-    if (leadSuit) {
-      const followCard = currentPlayer.hand.find((card) => card.canFollow(leadSuit, currentPlayer.hand, trumpSuit));
-      if (followCard) {
-        cardToPlay = followCard;
-      }
-    }
+    // Smart AI card selection logic
+    const cardToPlay = this.selectBestAICard(currentPlayer, leadSuit, trumpSuit);
 
     console.log("🤖 AI will play:", cardToPlay.displayName);
 
@@ -947,6 +1086,92 @@ export class GameScene extends Scene {
           this.makeAIPlay();
         }
       });
+    } else {
+      // If play failed, try a different strategy
+      console.warn("🤖 AI play failed, trying alternative card");
+      this.retryAIPlay(currentPlayer, leadSuit, trumpSuit, cardToPlay);
+    }
+  }
+
+  private selectBestAICard(player: any, leadSuit: any, trumpSuit: any): any {
+    // First priority: Follow suit if required
+    if (leadSuit) {
+      const followCard = player.hand.find((card: any) => card.canFollow(leadSuit, player.hand, trumpSuit));
+      if (followCard) {
+        return followCard;
+      }
+    }
+
+    // Second priority: If leading (no lead suit), avoid joker if trump not established
+    if (!leadSuit && !trumpSuit) {
+      // Cannot lead with joker when trump isn't established
+      const nonJokerCards = player.hand.filter((card: any) => !card.isJoker);
+      if (nonJokerCards.length > 0) {
+        // Prefer high cards when leading to establish strong trump
+        const sortedCards = [...nonJokerCards].sort((a: any, b: any) => b.rank - a.rank);
+        return sortedCards[0];
+      }
+    }
+
+    // Third priority: Play any valid card (should not reach here if trump not set and only joker available)
+    const validCards = player.hand.filter((card: any) => {
+      // Don't play joker if trump not established and we're leading
+      if (card.isJoker && !trumpSuit && !leadSuit) {
+        return false;
+      }
+      return true;
+    });
+
+    if (validCards.length > 0) {
+      return validCards[0];
+    }
+
+    // Fallback: just play first card (this should rarely happen)
+    return player.hand[0];
+  }
+
+  private retryAIPlay(player: any, leadSuit: any, trumpSuit: any, failedCard: any): void {
+    console.warn("🤖 Retrying AI play, failed card was:", failedCard.displayName);
+
+    // Find any card that is NOT the failed card
+    const alternativeCards = player.hand.filter((card: any) => card.id !== failedCard.id);
+
+    if (alternativeCards.length === 0) {
+      console.error("🤖 AI has no alternative cards to play!");
+      this.statusText.setText(`${player.name} cannot play any card - game error`);
+      return;
+    }
+
+    // Use more conservative selection for retry
+    let retryCard = alternativeCards[0]; // Default fallback
+
+    // If trump not established, absolutely avoid jokers
+    if (!trumpSuit && !leadSuit) {
+      const nonJokerAlternatives = alternativeCards.filter((card: any) => !card.isJoker);
+      if (nonJokerAlternatives.length > 0) {
+        retryCard = nonJokerAlternatives[0];
+      }
+    }
+
+    console.log("🤖 AI retry playing:", retryCard.displayName);
+
+    const success = this.gameManager.playCard(player.id, retryCard.id);
+
+    if (success) {
+      this.statusText.setText(`${player.name} played ${retryCard.displayName}`);
+
+      // Continue the game flow
+      this.time.delayedCall(1000, () => {
+        const newState = this.gameManager.getGameState();
+        const nextPlayer = newState.players[newState.currentHand.currentPlayerIndex];
+
+        if (!nextPlayer.isHuman && newState.gamePhase === "playing") {
+          this.makeAIPlay();
+        }
+      });
+    } else {
+      console.error("🤖 AI retry also failed!");
+      this.statusText.setText(`${player.name} cannot play - game stuck`);
     }
   }
 
@@ -983,9 +1208,13 @@ export class GameScene extends Scene {
       })
       .setOrigin(0.5);
 
-    // Score summary (placeholder)
-    const gameState = this.gameManager.getGameState();
-    const tricksText = `6 tricks played\nTrump suit was: ${gameState.currentHand.trumpSuit?.toUpperCase()}`;
+    // Score summary (from stored completed hand data)
+    const actualTricks = this.completedHandData?.tricksPlayed || 0;
+    const trumpSuit = this.completedHandData?.trumpSuit || "undefined";
+    const tricksText = `${actualTricks} tricks played\nTrump suit was: ${trumpSuit.toUpperCase()}`;
+    console.log("🏁 Hand Complete UI - Using stored data:");
+    console.log("🏁 Hand Complete UI - Actual tricks played:", actualTricks);
+    console.log("🏁 Hand Complete UI - Trump suit:", trumpSuit);
 
     const scoreText = this.add
       .text(width / 2, height / 2 - 20, tricksText, {

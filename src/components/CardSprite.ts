@@ -106,8 +106,13 @@ export class CardSprite extends Phaser.GameObjects.Container {
 
     const suit = this.card.suit?.toLowerCase();
     const rank = this.getRankDisplay();
+    const textureKey = `card_${suit}_${rank}`;
 
-    return `card_${suit}_${rank}`;
+    console.log(`🎴 CardSprite: Getting texture for ${this.card.displayName}`);
+    console.log(`🎴 Suit: ${suit}, Rank: ${rank}, TextureKey: ${textureKey}`);
+    console.log(`🎴 Texture exists:`, this.scene.textures.exists(textureKey));
+
+    return textureKey;
   }
 
   /**
