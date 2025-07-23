@@ -5,7 +5,8 @@
 		"orientationchange",
 		"Pagat",
 		"skinnable",
-		"Tweens"
+		"Tweens",
+		"Vite"
 	],
 	"ignorePaths": [
 		"**/node_modules/**",
