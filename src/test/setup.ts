@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom';
 
 // Global test setup for Vitest
-global.__DEV__ = true;
+(global as any).__DEV__ = true;
 
 // Mock Phaser for testing
 global.Phaser = {
@@ -25,7 +25,7 @@ global.Phaser = {
 } as any;
 
 // Mock EventEmitter for tests
-global.EventEmitter = class MockEventEmitter {
+(global as any).EventEmitter = class MockEventEmitter {
   private events: { [key: string]: Function[] } = {};
 
   on(event: string, callback: Function) {
