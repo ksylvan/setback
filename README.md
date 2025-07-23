@@ -126,6 +126,26 @@ setback/
 - **ESLint + Prettier** for code consistency
 - **Comprehensive Test Suite** with unit, integration, and E2E tests
 
+## 🎨 Assets & Credits
+
+### Card Sprites
+
+High-quality playing card graphics are sourced from **[Tek Eye](https://tekeye.uk/playing_cards/svg-playing-cards)** - a collection of public domain SVG playing cards. These vector-based cards provide crisp, scalable graphics perfect for web games.
+
+**Setup Process:**
+1. Downloaded SVG card files from Tek Eye's public domain collection
+2. Converted SVGs to high-resolution PNG format (maintaining vector quality)
+3. Renamed files to match game naming convention (`card_suits_rank` format)
+4. Optimized for Phaser 3 loading with proper texture sizing
+
+**Card Features:**
+- **Vector-sourced quality**: Sharp at all display sizes
+- **Consistent styling**: Professional appearance across all 52 cards + jokers  
+- **Public domain**: No licensing restrictions
+- **Optimized performance**: Pre-converted to PNG for efficient game loading
+
+The Tek Eye card collection ensures professional visual quality while maintaining excellent performance in the Phaser 3 game engine.
+
 ## 🧪 Testing
 
 The project maintains high code quality through comprehensive testing:

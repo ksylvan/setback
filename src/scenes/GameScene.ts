@@ -19,7 +19,6 @@ export class GameScene extends Scene {
   private statusText!: Phaser.GameObjects.Text;
   private handContainer!: Phaser.GameObjects.Container;
   private cardSprites: CardSprite[] = [];
-  private themeButtons: Phaser.GameObjects.Text[] = [];
   private trumpDisplay!: Phaser.GameObjects.Text;
   private trickInfo!: Phaser.GameObjects.Text;
   private biddingDisplay!: Phaser.GameObjects.Container;
@@ -28,6 +27,7 @@ export class GameScene extends Scene {
   private persistentBidDisplay!: Phaser.GameObjects.Text;
   private trickArea!: Phaser.GameObjects.Container;
   private playedCardSprites: { [playerId: string]: CardSprite } = {};
+  private isHandCompleting: boolean = false;
 
   constructor() {
     super({ key: "GameScene" });
@@ -61,6 +61,7 @@ export class GameScene extends Scene {
     this.gameManager.on("trumpEstablished", this.onTrumpEstablished.bind(this));
     this.gameManager.on("invalidPlay", this.onInvalidPlay.bind(this));
     this.gameManager.on("trickComplete", this.onTrickComplete.bind(this));
+    this.gameManager.on("handComplete", this.onHandComplete.bind(this));
   }
 
   private createUI(): void {
@@ -103,8 +104,7 @@ export class GameScene extends Scene {
       this.scene.start("MenuScene");
     });
 
-    // Create theme switching UI
-    this.createThemeUI();
+    // Theme switching UI removed for cleaner interface
 
     // Create game info displays
     this.createGameInfoDisplays();
@@ -185,7 +185,7 @@ export class GameScene extends Scene {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
 
-    this.handContainer = this.add.container(width / 2, height - 150);
+    this.handContainer = this.add.container(width / 2, height - 80);
   }
 
   private updateHand(): void {
@@ -388,10 +388,32 @@ export class GameScene extends Scene {
     const winner = this.gameManager.getPlayer(event.winnerId);
     this.statusText.setText(`${winner?.name} wins the trick!`);
 
-    // Clear the trick after a short delay and continue game
+    // Clear the trick after showing the result, then continue game
     this.time.delayedCall(2000, () => {
       this.clearTrick();
-      this.continueAfterTrick();
+
+      // Only continue if this isn't the final trick (hand completing)
+      if (!this.isHandCompleting) {
+        this.continueAfterTrick();
+      }
+    });
+  }
+
+  private onHandComplete(_event: any): void {
+    // Set flag to indicate hand is completing
+    this.isHandCompleting = true;
+
+    console.log("🏁 Hand complete event received");
+
+    // Let the final trick display for full duration, then handle hand completion
+    this.time.delayedCall(2500, () => {
+      this.statusText.setText("Hand complete - calculating scores...");
+
+      // Show hand completion UI after additional delay
+      this.time.delayedCall(3000, () => {
+        this.showHandCompleteUI();
+        this.isHandCompleting = false;
+      });
     });
   }
 
@@ -426,14 +448,8 @@ export class GameScene extends Scene {
           this.statusText.setText("Your turn to lead the next trick");
         }
       } else {
-        // Hand is complete, move to scoring
-        this.statusText.setText("Hand complete - calculating scores...");
-        console.log("🎯 Hand complete! Total tricks played:", gameState.currentHand.tricks.length);
-
-        // For now, show a completion message and option to start new hand
-        this.time.delayedCall(3000, () => {
-          this.showHandCompleteUI();
-        });
+        // Hand completion is now handled by onHandComplete event
+        console.log("🎯 Hand complete detected in continueAfterTrick - should be handled by onHandComplete");
       }
     }
   }
@@ -583,65 +599,6 @@ export class GameScene extends Scene {
     this.gameManager.placeBid(currentPlayer.id, bidAmount);
   }
 
-  private createThemeUI(): void {
-    const _width = this.cameras.main.width;
-    const height = this.cameras.main.height;
-
-    // Theme selector title - positioned in lower left corner
-    this.add
-      .text(80, height - 180, "Card Theme:", {
-        fontSize: "14px",
-        color: "#ffffff",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-
-    // Get available themes
-    const themes = this.themeManager.getThemeNames();
-    const currentTheme = this.themeManager.getCurrentTheme();
-
-    themes.forEach((theme, index) => {
-      const y = height - 150 + index * 30;
-      const isSelected = theme.id === currentTheme.id;
-
-      const themeButton = this.add
-        .text(80, y, theme.name, {
-          fontSize: "12px",
-          color: isSelected ? "#FFD700" : "#ffffff",
-          backgroundColor: isSelected ? "#4a7c59" : "#666666",
-          padding: { x: 10, y: 5 },
-        })
-        .setOrigin(0.5);
-
-      themeButton.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
-        this.switchTheme(theme.id);
-      });
-
-      this.themeButtons.push(themeButton);
-    });
-  }
-
-  private switchTheme(themeId: string): void {
-    this.themeManager.setCurrentTheme(themeId);
-
-    // Update theme button styles
-    const themes = this.themeManager.getThemeNames();
-    this.themeButtons.forEach((button, index) => {
-      const theme = themes[index];
-      const isSelected = theme.id === themeId;
-
-      button.setStyle({
-        color: isSelected ? "#FFD700" : "#ffffff",
-        backgroundColor: isSelected ? "#4a7c59" : "#666666",
-      });
-    });
-
-    // Update all card sprites with new theme
-    this.updateHand();
-
-    this.statusText.setText(`Switched to ${this.themeManager.getCurrentTheme().name} theme`);
-  }
-
   private createGameInfoDisplays(): void {
     const width = this.cameras.main.width;
     const _height = this.cameras.main.height;
@@ -740,14 +697,14 @@ export class GameScene extends Scene {
     // Add a subtle background for the trick area
     const trickBackground = this.add.graphics();
     trickBackground.fillStyle(0x2a2a2a, 0.7);
-    trickBackground.fillRoundedRect(-120, -80, 240, 160, 10);
+    trickBackground.fillRoundedRect(-160, -110, 320, 220, 10);
     trickBackground.lineStyle(2, 0x555555);
-    trickBackground.strokeRoundedRect(-120, -80, 240, 160, 10);
+    trickBackground.strokeRoundedRect(-160, -110, 320, 220, 10);
     this.trickArea.add(trickBackground);
 
     // Add trick label
     const trickLabel = this.add
-      .text(0, -60, "Current Trick", {
+      .text(0, -85, "Current Trick", {
         fontSize: "16px",
         color: "#ffffff",
         fontStyle: "bold",
@@ -757,6 +714,15 @@ export class GameScene extends Scene {
   }
 
   private addCardToTrick(player: any, card: any): void {
+    // Get current card count before adding new card
+    const currentCardCount = Object.keys(this.playedCardSprites).length;
+
+    // Always prevent more than 4 cards - this is the main protection
+    if (currentCardCount >= 4) {
+      console.warn("⚠️ Attempted to add 5th card to trick area, ignoring");
+      return;
+    }
+
     // Position cards based on player position
     let x = 0,
       y = 0;
