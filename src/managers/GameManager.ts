@@ -10,6 +10,7 @@ import {
   Player,
   PlayerPosition,
   Suit,
+  Trick,
 } from "@/types/game";
 
 export class GameManager extends EventEmitter {
@@ -41,6 +42,7 @@ export class GameManager extends EventEmitter {
         currentPlayerIndex: 0,
         tricks: [],
         currentTrick: null,
+        bids: [],
       },
       deck: [],
       gamePhase: GamePhase.SETUP,
@@ -94,8 +96,10 @@ export class GameManager extends EventEmitter {
    * Start a new game
    */
   startGame(): void {
+    console.log('🎮 GameManager.startGame() called');
     this.gameState.gamePhase = GamePhase.DEALING;
     this.dealHand();
+    console.log('🎮 Emitting gameStarted event');
     this.emit("gameStarted", this.gameState);
   }
 
@@ -123,6 +127,7 @@ export class GameManager extends EventEmitter {
       this.sortHand(player.hand);
     });
 
+    console.log('🎮 Cards dealt, starting bidding...');
     this.startBidding();
   }
 
@@ -144,14 +149,19 @@ export class GameManager extends EventEmitter {
    * Start the bidding phase
    */
   private startBidding(): void {
+    console.log('🎯 GameManager.startBidding() called');
     this.gameState.gamePhase = GamePhase.BIDDING;
     this.gameState.currentHand.biddingPhase = true;
     this.gameState.currentHand.currentBid = null;
+    this.gameState.currentHand.bids = []; // Clear any previous bids
 
     // Bidding starts with player to the left of dealer
     const dealerIndex = this.gameState.players.findIndex((p) => p.isDealer);
     this.gameState.currentHand.currentPlayerIndex = (dealerIndex + 1) % 4;
 
+    const currentPlayer = this.gameState.players[this.gameState.currentHand.currentPlayerIndex];
+    console.log('🎯 Bidding starts with:', currentPlayer.name, 'isHuman:', currentPlayer.isHuman);
+    console.log('🎯 Emitting biddingStarted event');
     this.emit("biddingStarted", this.gameState);
   }
 
@@ -185,6 +195,14 @@ export class GameManager extends EventEmitter {
         return false; // Bid too low
       }
     }
+
+    // Initialize bids array if it doesn't exist
+    if (!this.gameState.currentHand.bids) {
+      this.gameState.currentHand.bids = [];
+    }
+
+    // Add the bid to the history
+    this.gameState.currentHand.bids.push(bid);
 
     // Accept the bid
     if (!bid.passed) {
@@ -220,9 +238,34 @@ export class GameManager extends EventEmitter {
       return true; // Shoot the moon
     }
 
-    // For now, simplified: bidding ends after one round
-    // TODO: Implement proper bidding logic with pass tracking
-    return true;
+    // Initialize bids array if it doesn't exist
+    if (!this.gameState.currentHand.bids) {
+      this.gameState.currentHand.bids = [];
+    }
+
+    const bids = this.gameState.currentHand.bids;
+    
+    // If we haven't had 4 bids yet, continue bidding
+    if (bids.length < 4) {
+      return false;
+    }
+
+    // If all 4 players have bid, check if we have a winner
+    // Bidding continues until 3 consecutive passes after a bid
+    const lastFourBids = bids.slice(-4);
+    const lastThreeBids = bids.slice(-3);
+    
+    // If the last 3 bids were all passes and there's a current bid, bidding is done
+    if (currentBid && lastThreeBids.length === 3 && lastThreeBids.every((bid: Bid) => bid.passed)) {
+      return true;
+    }
+
+    // If all 4 players passed, dealer gets stuck with 2
+    if (lastFourBids.length === 4 && lastFourBids.every((bid: Bid) => bid.passed)) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -277,6 +320,180 @@ export class GameManager extends EventEmitter {
     return this.gameState.partnerships.find(
       (p) => p.player1Id === playerId || p.player2Id === playerId
     );
+  }
+
+  /**
+   * Play a card - Core mechanic for SB-001
+   */
+  playCard(playerId: string, cardId: string): boolean {
+    // Validate game phase
+    if (this.gameState.gamePhase !== GamePhase.PLAYING) {
+      this.emit('invalidPlay', {
+        reason: 'Not in playing phase',
+        playerId,
+        cardId
+      });
+      return false;
+    }
+
+    // Validate current player
+    const currentPlayer = this.gameState.players[this.gameState.currentHand.currentPlayerIndex];
+    if (currentPlayer.id !== playerId) {
+      this.emit('invalidPlay', {
+        reason: 'Not your turn',
+        playerId,
+        cardId
+      });
+      return false;
+    }
+
+    // Find the card in player's hand
+    const cardToPlay = currentPlayer.hand.find(card => card.id === cardId);
+    if (!cardToPlay) {
+      this.emit('invalidPlay', {
+        reason: 'Card not found in player hand',
+        playerId,
+        cardId
+      });
+      return false;
+    }
+
+    // Validate the card play according to game rules
+    if (!this.validateCardPlay(currentPlayer, cardToPlay)) {
+      return false;
+    }
+
+    // Execute the card play
+    this.executeCardPlay(currentPlayer, cardToPlay);
+
+    return true;
+  }
+
+  /**
+   * Validate if a card play is legal according to Setback rules
+   */
+  private validateCardPlay(player: Player, card: Card): boolean {
+    // Special rule: Joker cannot be led as first card
+    if (card.isJoker && this.gameState.currentHand.trumpSuit === null) {
+      this.emit('invalidPlay', {
+        reason: 'Joker cannot be led as first card',
+        playerId: player.id,
+        cardId: card.id
+      });
+      return false;
+    }
+
+    // If this is not the first card in the trick, check suit following rules
+    if (this.gameState.currentHand.currentTrick && this.gameState.currentHand.currentTrick.cards.length > 0) {
+      const leadSuit = this.gameState.currentHand.currentTrick.leadSuit;
+      const trumpSuit = this.gameState.currentHand.trumpSuit;
+      
+      if (!card.canFollow(leadSuit, player.hand, trumpSuit)) {
+        this.emit('invalidPlay', {
+          reason: 'Must follow lead suit when possible',
+          playerId: player.id,
+          cardId: card.id
+        });
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Execute a valid card play
+   */
+  private executeCardPlay(player: Player, card: Card): void {
+    // Remove card from player's hand
+    const cardIndex = player.hand.findIndex(c => c.id === card.id);
+    player.hand.splice(cardIndex, 1);
+
+    // Establish trump suit if this is the first card
+    if (this.gameState.currentHand.trumpSuit === null && !card.isJoker) {
+      this.establishTrumpSuit(card);
+    }
+
+    // Add card to current trick
+    this.addCardToCurrentTrick(player.id, card);
+
+    // Advance to next player or complete trick
+    this.advanceGameState();
+
+    // Emit events for UI updates
+    this.emit('cardPlayed', {
+      playerId: player.id,
+      card: card,
+      trickState: this.gameState.currentHand.currentTrick
+    });
+
+    this.emit('gameStateUpdated', this.gameState);
+  }
+
+  /**
+   * Establish trump suit when first card is played
+   */
+  private establishTrumpSuit(firstCard: Card): void {
+    this.gameState.currentHand.trumpSuit = firstCard.suit;
+    this.emit('trumpEstablished', firstCard.suit);
+  }
+
+  /**
+   * Add a card to the current trick
+   */
+  private addCardToCurrentTrick(playerId: string, card: Card): void {
+    // Create new trick if none exists
+    if (!this.gameState.currentHand.currentTrick) {
+      this.gameState.currentHand.currentTrick = {
+        id: `trick_${this.gameState.currentHand.tricks.length}`,
+        cards: [],
+        winner: '', // Will be determined when trick is complete
+        leadSuit: card.suit || Suit.HEARTS // Fallback for joker, though it shouldn't be first
+      };
+    }
+
+    // Add the card to the trick
+    this.gameState.currentHand.currentTrick.cards.push({
+      playerId,
+      card
+    });
+  }
+
+  /**
+   * Advance game state after a card is played
+   */
+  private advanceGameState(): void {
+    const currentTrick = this.gameState.currentHand.currentTrick!;
+    
+    // Check if trick is complete (4 cards played)
+    if (currentTrick.cards.length === 4) {
+      this.completeTrick();
+    } else {
+      // Advance to next player
+      this.gameState.currentHand.currentPlayerIndex = 
+        (this.gameState.currentHand.currentPlayerIndex + 1) % 4;
+    }
+  }
+
+  /**
+   * Complete the current trick (placeholder for SB-002)
+   */
+  private completeTrick(): void {
+    const currentTrick = this.gameState.currentHand.currentTrick!;
+    
+    // For now, just determine winner by simple logic (will be enhanced in SB-002)
+    // This is a placeholder - proper trump evaluation will be in trick-taking story
+    currentTrick.winner = currentTrick.cards[0].playerId;
+    
+    // Move trick to completed tricks
+    this.gameState.currentHand.tricks.push(currentTrick);
+    this.gameState.currentHand.currentTrick = null;
+    
+    // Winner of trick leads next trick (placeholder logic)
+    const winnerIndex = this.gameState.players.findIndex(p => p.id === currentTrick.winner);
+    this.gameState.currentHand.currentPlayerIndex = winnerIndex;
+    
+    this.emit('trickComplete', currentTrick);
   }
 
   /**

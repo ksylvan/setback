@@ -15,7 +15,8 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "download-cards": "./download-cards.sh"
   },
   "keywords": [
     "phaser",

@@ -144,3 +144,5 @@ vite.config.ts.timestamp-*
 .github/chatmodes/*
 .claude/
 
+# Tmp directory
+tmp/

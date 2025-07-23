@@ -82,6 +82,7 @@ export interface GameState {
     currentPlayerIndex: number;
     tricks: Trick[];
     currentTrick: Trick | null;
+    bids: Bid[];
   };
   deck: Card[];
   gamePhase: GamePhase;

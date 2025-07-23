@@ -129,10 +129,10 @@ describe('GameManager', () => {
       gameManager.placeBid(currentPlayer.id, 3);
       
       const updatedState = gameManager.getGameState();
-      // Since bidding is complete after one bid in the simplified implementation,
-      // we should be in PLAYING phase with bid winner leading
-      expect(updatedState.gamePhase).toBe(GamePhase.PLAYING);
-      expect(updatedState.currentHand.biddingPhase).toBe(false);
+      // After one bid, we should still be in bidding phase but advanced to next player
+      expect(updatedState.gamePhase).toBe(GamePhase.BIDDING);
+      expect(updatedState.currentHand.biddingPhase).toBe(true);
+      expect(updatedState.currentHand.currentPlayerIndex).toBe((initialPlayerIndex + 1) % 4);
     });
 
     it('should reject bids from wrong player', () => {
@@ -164,11 +164,17 @@ describe('GameManager', () => {
     });
 
     it('should transition from bidding to playing after a bid', () => {
-      const state = gameManager.getGameState();
-      const currentPlayer = state.players[state.currentHand.currentPlayerIndex];
+      // Complete a full bidding round: first player bids 3, rest pass
+      let state = gameManager.getGameState();
+      let currentPlayer = state.players[state.currentHand.currentPlayerIndex];
+      gameManager.placeBid(currentPlayer.id, 3); // First player bids 3
       
-      // Place a bid
-      gameManager.placeBid(currentPlayer.id, 3);
+      // Next 3 players pass
+      for (let i = 0; i < 3; i++) {
+        state = gameManager.getGameState();
+        currentPlayer = state.players[state.currentHand.currentPlayerIndex];
+        gameManager.placeBid(currentPlayer.id, null); // Pass
+      }
       
       const updatedState = gameManager.getGameState();
       expect(updatedState.gamePhase).toBe(GamePhase.PLAYING);
@@ -180,7 +186,15 @@ describe('GameManager', () => {
       const state = gameManager.getGameState();
       const biddingPlayer = state.players[state.currentHand.currentPlayerIndex];
       
+      // Complete a full bidding round: first player bids 4, rest pass
       gameManager.placeBid(biddingPlayer.id, 4);
+      
+      // Next 3 players pass
+      for (let i = 0; i < 3; i++) {
+        const currentState = gameManager.getGameState();
+        const currentPlayer = currentState.players[currentState.currentHand.currentPlayerIndex];
+        gameManager.placeBid(currentPlayer.id, null); // Pass
+      }
       
       const updatedState = gameManager.getGameState();
       const currentPlayer = updatedState.players[updatedState.currentHand.currentPlayerIndex];
