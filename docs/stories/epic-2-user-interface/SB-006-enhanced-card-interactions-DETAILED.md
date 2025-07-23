@@ -233,7 +233,7 @@ class TurnIndicator extends Phaser.GameObjects.Container {
 
 **Completion Notes:**
 
-Successfully implemented all core interaction features. Added dealer border indicators and Last Trick Winner display beyond requirements. Mobile touch gestures remain pending. All TypeScript compilation clean with zero linting errors.
+Successfully implemented all desktop interaction features. Added dealer border indicators and Last Trick Winner display beyond requirements. **Mobile touch gestures remain pending** - this is the final piece needed to complete SB-006. All TypeScript compilation clean with zero linting errors.
 
 **Test Coverage Results:**
 
