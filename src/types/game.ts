@@ -1,5 +1,6 @@
 // Core game enums and types for Setback card game
 import type { Card } from "@/entities/Card";
+import type { CardDisplayState, CardInteractionEvent } from "./interaction";
 
 export enum Suit {
   HEARTS = "hearts",
@@ -87,6 +88,9 @@ export interface GameState {
   deck: Card[];
   gamePhase: GamePhase;
   winner: Partnership | null;
+  // Enhanced interaction state
+  cardStates?: Map<string, CardDisplayState>;
+  lastInteraction?: CardInteractionEvent;
 }
 
 export enum GamePhase {

@@ -1,8 +1,19 @@
 import { Scene } from "phaser";
 import { CardSprite } from "@/components/CardSprite";
+import { CardTooltip } from "@/components/CardTooltip";
+import { TurnIndicator } from "@/components/TurnIndicator";
 import { CardThemeManager } from "@/managers/CardThemeManager";
 import { GameManager } from "@/managers/GameManager";
+import { KeyboardManager } from "@/managers/KeyboardManager";
 import type { Bid, Player, GameConfig as SetbackGameConfig } from "@/types/game";
+import type { CardSelectionState } from "@/types/interaction";
+import {
+  getCardDisplayState,
+  getErrorDisplayMessage,
+  getInteractionError,
+  requiresConfirmation,
+  validateCardPlay,
+} from "@/utils/InteractionUtils";
 
 interface SceneData {
   players: Array<{
@@ -14,7 +25,15 @@ interface SceneData {
 export class GameScene extends Scene {
   private gameManager!: GameManager;
   private themeManager!: CardThemeManager;
+  private keyboardManager!: KeyboardManager;
+  private turnIndicator!: TurnIndicator;
   private playerTexts: { [playerId: string]: Phaser.GameObjects.Text } = {};
+  private playerLeaderBorders: {
+    [playerId: string]: Phaser.GameObjects.Graphics;
+  } = {};
+  private playerDealerBorders: {
+    [playerId: string]: Phaser.GameObjects.Graphics;
+  } = {};
   private scoreTexts: { [partnershipId: string]: Phaser.GameObjects.Text } = {};
   private statusText!: Phaser.GameObjects.Text;
   private handContainer!: Phaser.GameObjects.Container;
@@ -25,6 +44,7 @@ export class GameScene extends Scene {
   private playerBidTexts: { [playerId: string]: Phaser.GameObjects.Text } = {};
   private currentBidDisplay!: Phaser.GameObjects.Text;
   private persistentBidDisplay!: Phaser.GameObjects.Text;
+  private lastTrickWinnerDisplay!: Phaser.GameObjects.Text;
   private trickArea!: Phaser.GameObjects.Container;
   private playedCardSprites: { [playerId: string]: CardSprite } = {};
   private isHandCompleting: boolean = false;
@@ -33,6 +53,15 @@ export class GameScene extends Scene {
     trumpSuit: string;
   } | null = null;
   private handCompleteTimers: Phaser.Time.TimerEvent[] = [];
+
+  // Enhanced interaction state
+  private selectionState: CardSelectionState = {
+    selectedCard: null,
+    confirmationRequired: true,
+    selectionTime: 0,
+  };
+  private confirmButton!: Phaser.GameObjects.Text;
+  private cancelButton!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: "GameScene" });
@@ -46,12 +75,15 @@ export class GameScene extends Scene {
 
     this.gameManager = new GameManager(gameConfig);
     this.themeManager = new CardThemeManager();
+    this.keyboardManager = new KeyboardManager(this);
     this.setupGameEvents();
+    this.setupInteractionEvents();
   }
 
   create(): void {
     console.log("🎮 GameScene created");
     this.createUI();
+    this.createInteractionUI();
     console.log("🎮 Starting game...");
     this.gameManager.startGame();
   }
@@ -119,6 +151,57 @@ export class GameScene extends Scene {
     this.createGameInfoDisplays();
   }
 
+  /**
+   * Setup enhanced interaction events
+   */
+  private setupInteractionEvents(): void {
+    // Keyboard manager events
+    this.keyboardManager.on("cardSelected", this.onKeyboardCardSelected.bind(this));
+    this.keyboardManager.on("cardConfirmed", this.onKeyboardCardConfirmed.bind(this));
+    this.keyboardManager.on("cardCancelled", this.onKeyboardCardCancelled.bind(this));
+    this.keyboardManager.on("announcement", this.onAccessibilityAnnouncement.bind(this));
+
+    // Enhanced game manager events for interaction feedback
+    this.gameManager.on("cardPlayabilityChanged", this.onCardPlayabilityChanged.bind(this));
+    this.gameManager.on("currentPlayerChanged", this.onCurrentPlayerChanged.bind(this));
+  }
+
+  /**
+   * Create enhanced interaction UI elements
+   */
+  private createInteractionUI(): void {
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+
+    // Create turn indicator
+    this.turnIndicator = new TurnIndicator(this, width / 2, 200);
+
+    // Create confirm/cancel buttons (initially hidden)
+    this.confirmButton = this.add
+      .text(width / 2 - 80, height - 150, "CONFIRM PLAY", {
+        fontSize: "16px",
+        color: "#ffffff",
+        backgroundColor: "#4CAF50",
+        padding: { x: 20, y: 10 },
+      })
+      .setOrigin(0.5)
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.confirmCardPlay());
+
+    this.cancelButton = this.add
+      .text(width / 2 + 80, height - 150, "CANCEL", {
+        fontSize: "16px",
+        color: "#ffffff",
+        backgroundColor: "#f44336",
+        padding: { x: 20, y: 10 },
+      })
+      .setOrigin(0.5)
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.cancelCardSelection());
+  }
+
   private createPlayerAreas(): void {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
@@ -160,7 +243,136 @@ export class GameScene extends Scene {
         .setOrigin(0.5);
 
       this.playerTexts[player.id] = playerText;
+
+      // Create leader border graphics for this player
+      this.createPlayerLeaderBorder(player.id, x, y, playerText);
+
+      // Create dealer border graphics for this player
+      this.createPlayerDealerBorder(player.id, x, y, playerText, player.isDealer);
     });
+  }
+
+  /**
+   * Create leader border graphics for a player
+   */
+  private createPlayerLeaderBorder(playerId: string, x: number, y: number, playerText: Phaser.GameObjects.Text): void {
+    const graphics = this.add.graphics();
+
+    // Calculate border dimensions based on text size
+    const textBounds = playerText.getBounds();
+    const borderWidth = textBounds.width + 12; // Add padding
+    const borderHeight = textBounds.height + 8; // Add padding
+
+    // Create thick dark black border
+    graphics.lineStyle(4, 0x000000, 1.0); // 4px thick black border
+    graphics.strokeRect(x - borderWidth / 2, y - borderHeight / 2, borderWidth, borderHeight);
+
+    // Initially hide the border
+    graphics.setVisible(false);
+
+    // Store reference
+    this.playerLeaderBorders[playerId] = graphics;
+  }
+
+  /**
+   * Create dealer border graphics for a player
+   */
+  private createPlayerDealerBorder(
+    playerId: string,
+    x: number,
+    y: number,
+    playerText: Phaser.GameObjects.Text,
+    isDealer: boolean
+  ): void {
+    const graphics = this.add.graphics();
+
+    // Calculate border dimensions based on text size
+    const textBounds = playerText.getBounds();
+    const borderWidth = textBounds.width + 16; // More padding than leader border
+    const borderHeight = textBounds.height + 12; // More padding than leader border
+
+    // Create thick golden/yellow border for dealer (distinct from black leader border)
+    graphics.lineStyle(3, 0xffd700, 1.0); // 3px thick gold border
+    graphics.strokeRect(x - borderWidth / 2, y - borderHeight / 2, borderWidth, borderHeight);
+
+    // Show border only if player is dealer
+    graphics.setVisible(isDealer);
+
+    // Store reference
+    this.playerDealerBorders[playerId] = graphics;
+  }
+
+  /**
+   * Show leader border for a specific player
+   */
+  private showPlayerLeaderBorder(playerId: string): void {
+    const border = this.playerLeaderBorders[playerId];
+    if (border) {
+      border.setVisible(true);
+    }
+  }
+
+  /**
+   * Hide all leader borders
+   */
+  private hideAllLeaderBorders(): void {
+    Object.values(this.playerLeaderBorders).forEach((border) => {
+      if (border) {
+        border.setVisible(false);
+      }
+    });
+  }
+
+  /**
+   * Show dealer border for a specific player
+   */
+  private showPlayerDealerBorder(playerId: string): void {
+    const border = this.playerDealerBorders[playerId];
+    if (border) {
+      border.setVisible(true);
+    }
+  }
+
+  /**
+   * Hide all dealer borders
+   */
+  private hideAllDealerBorders(): void {
+    Object.values(this.playerDealerBorders).forEach((border) => {
+      if (border) {
+        border.setVisible(false);
+      }
+    });
+  }
+
+  /**
+   * Update dealer borders based on current game state
+   */
+  private updateDealerBorders(): void {
+    const gameState = this.gameManager.getGameState();
+
+    // Hide all dealer borders first
+    this.hideAllDealerBorders();
+
+    // Show border for current dealer
+    gameState.players.forEach((player) => {
+      if (player.isDealer) {
+        this.showPlayerDealerBorder(player.id);
+      }
+    });
+  }
+
+  /**
+   * Update last trick winner display
+   */
+  private updateLastTrickWinnerDisplay(winner: any): void {
+    if (winner) {
+      this.lastTrickWinnerDisplay.setText(`Last Trick: ${winner.name}`);
+      this.lastTrickWinnerDisplay.setVisible(true);
+      console.log(`🏆 Last trick winner display updated: ${winner.name}`);
+    } else {
+      this.lastTrickWinnerDisplay.setText("Last Trick: None");
+      this.lastTrickWinnerDisplay.setVisible(false);
+    }
   }
 
   private createScoreDisplay(): void {
@@ -198,8 +410,11 @@ export class GameScene extends Scene {
   }
 
   private updateHand(): void {
-    // Clear existing cards
-    this.cardSprites.forEach((sprite) => sprite.destroy());
+    // Clear existing cards and tooltips
+    this.cardSprites.forEach((sprite) => {
+      sprite.hideTooltip();
+      sprite.destroy();
+    });
     this.cardSprites = [];
 
     const gameState = this.gameManager.getGameState();
@@ -213,7 +428,8 @@ export class GameScene extends Scene {
       humanPlayer.hand.map((c) => c.displayName)
     );
     console.log(`🎯 Game phase: ${gameState.gamePhase}`);
-    console.log(`🎯 Current player: ${gameState.players[gameState.currentHand.currentPlayerIndex].name}`);
+    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
+    console.log(`🎯 Current player: ${currentPlayer.name} (isHuman: ${currentPlayer.isHuman})`);
 
     // Display human player's hand using CardSprite
     const cardSpacing = 100;
@@ -223,51 +439,72 @@ export class GameScene extends Scene {
     humanPlayer.hand.forEach((card, index) => {
       const x = startX + index * cardSpacing;
 
-      // Create beautiful CardSprite
+      // Create enhanced CardSprite with interaction features
       const cardSprite = new CardSprite(this, x, 0, card, currentTheme);
 
-      // Determine if this card is playable and provide visual feedback
-      const isPlayable = this.isCardPlayable(card, gameState);
+      // Get comprehensive display state
+      // Only validate playability if it's actually the human's turn
+      const isHumanTurn = currentPlayer.id === humanPlayer.id;
+      const displayState = isHumanTurn
+        ? getCardDisplayState(card, humanPlayer, gameState, this.selectionState.selectedCard?.id === card.id)
+        : {
+            playable: false,
+            selected: this.selectionState.selectedCard?.id === card.id,
+            highlighted: false,
+            dimmed: true,
+            reason: `${currentPlayer.name} is playing - wait for your turn`,
+          };
 
-      // Visual feedback for playable/non-playable cards during playing phase
-      if (gameState.gamePhase === "playing" && gameState.players[gameState.currentHand.currentPlayerIndex].isHuman) {
-        if (isPlayable) {
-          cardSprite.setSelectable(true);
-        } else {
-          cardSprite.setSelectable(false);
-          cardSprite.setAlpha(0.6); // Dim non-playable cards
-        }
-      }
+      // Apply display state
+      cardSprite.setDisplayState(displayState);
 
-      // Add click handler for card play
-      cardSprite.on("cardSelected", (_event: any) => {
-        this.onCardSelected(card);
-      });
+      // Set up enhanced event handlers
+      this.setupCardEventHandlers(cardSprite, card);
 
       this.cardSprites.push(cardSprite);
       this.handContainer.add(cardSprite);
     });
+
+    // Update keyboard manager with new cards
+    const selectableCards = this.cardSprites.filter((sprite) => sprite.getDisplayState().playable);
+    this.keyboardManager.updateSelectableCards(selectableCards);
   }
 
-  private isCardPlayable(card: any, gameState: any): boolean {
-    const currentTrick = gameState.currentHand.currentTrick;
-    const leadSuit = currentTrick?.leadSuit;
-    const trumpSuit = gameState.currentHand.trumpSuit;
-    const humanPlayer = gameState.players.find((p: any) => p.isHuman);
+  /**
+   * Setup comprehensive event handlers for a card sprite
+   */
+  private setupCardEventHandlers(cardSprite: CardSprite, card: any): void {
+    // Enhanced selection events
+    cardSprite.on("cardSelected", (event: any) => {
+      this.onEnhancedCardSelected(card, event);
+    });
 
-    if (!humanPlayer) return false;
+    cardSprite.on("cardConfirmed", (event: any) => {
+      this.onEnhancedCardConfirmed(card, event);
+    });
 
-    // First card cannot be a joker
-    if (card.isJoker && !trumpSuit) {
-      return false;
-    }
+    cardSprite.on("cardCancelled", (event: any) => {
+      this.onEnhancedCardCancelled(card, event);
+    });
 
-    // If there's a lead suit, use the Card's proper canFollow method
-    if (leadSuit) {
-      return card.canFollow(leadSuit, humanPlayer.hand, trumpSuit);
-    }
+    // Hover events for enhanced feedback
+    cardSprite.on("cardHoverStart", (event: any) => {
+      this.onCardHoverStart(card, event);
+    });
 
-    return true;
+    cardSprite.on("cardHoverEnd", (event: any) => {
+      this.onCardHoverEnd(card, event);
+    });
+
+    // Mobile long press events
+    cardSprite.on("cardLongPress", (event: any) => {
+      this.onCardLongPress(card, event);
+    });
+
+    // Tooltip requests with fresh game state
+    cardSprite.on("tooltipRequested", (event: any) => {
+      this.onTooltipRequested(card, event);
+    });
   }
 
   private onGameStarted(): void {
@@ -275,6 +512,12 @@ export class GameScene extends Scene {
     this.statusText.setText("Game Started - Dealing Cards...");
     this.updateHand();
     this.updateScores();
+
+    // Show dealer border
+    this.updateDealerBorders();
+
+    // Clear last trick winner for new game
+    this.updateLastTrickWinnerDisplay(null);
   }
 
   private onBiddingStarted(): void {
@@ -282,15 +525,17 @@ export class GameScene extends Scene {
     this.statusText.setText("🎯 Bidding Phase Started!");
     this.highlightCurrentPlayer();
 
+    // Update turn indicator and show bidding displays
+    const gameState = this.gameManager.getGameState();
+    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
+    const instruction = currentPlayer.isHuman ? "Your turn to bid" : `${currentPlayer.name} is bidding...`;
+    this.turnIndicator.showPlayerTurn(currentPlayer, instruction);
+
     // Show the bidding displays
     this.biddingDisplay.setVisible(true);
     this.persistentBidDisplay.setVisible(true);
     this.updateBiddingDisplay();
     this.updatePersistentBidDisplay();
-
-    // Check who the current player is
-    const gameState = this.gameManager.getGameState();
-    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
 
     console.log("🎯 Current player:", currentPlayer.name, "isHuman:", currentPlayer.isHuman);
     console.log(
@@ -300,8 +545,23 @@ export class GameScene extends Scene {
 
     if (currentPlayer.isHuman) {
       console.log("🎯 SHOWING BIDDING UI FOR HUMAN!");
-      this.statusText.setText("🎯 Your turn to bid!");
-      this.showBiddingUI();
+
+      // Check if only PASS is available (no valid bids left)
+      const currentBid = gameState.currentHand.currentBid;
+      const minBid = currentBid ? currentBid.amount + 1 : 2;
+
+      if (minBid > 6) {
+        // Only PASS available - auto-pass and show message
+        console.log("🎯 Only PASS available at bidding start - auto-passing for user");
+        this.statusText.setText("🎯 Bidding maxed out - automatically passing");
+        this.time.delayedCall(1500, () => {
+          this.gameManager.placeBid(currentPlayer.id, null);
+        });
+      } else {
+        // Normal bidding UI with choices
+        this.statusText.setText("🎯 Your turn to bid!");
+        this.showBiddingUI();
+      }
     } else {
       console.log("🎯 AI player will bid automatically");
       this.statusText.setText(`🎯 ${currentPlayer.name} is bidding...`);
@@ -331,10 +591,29 @@ export class GameScene extends Scene {
       const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
       console.log("🎯 After bid, current player:", currentPlayer.name, "isHuman:", currentPlayer.isHuman);
 
+      // CRITICAL: Update turn indicator after each bid
+      console.log(`🎯 BIDDING TURN: ${currentPlayer.name} to bid (isHuman: ${currentPlayer.isHuman})`);
+      this.updateTurnIndicator();
+
       if (currentPlayer.isHuman) {
         console.log("🎯 SHOWING BIDDING UI AFTER AI BID!");
-        this.statusText.setText("🎯 Your turn to bid!");
-        this.showBiddingUI();
+
+        // Check if only PASS is available (no valid bids left)
+        const currentBid = gameState.currentHand.currentBid;
+        const minBid = currentBid ? currentBid.amount + 1 : 2;
+
+        if (minBid > 6) {
+          // Only PASS available - auto-pass and show message
+          console.log("🎯 Only PASS available - auto-passing for user");
+          this.statusText.setText("🎯 Bidding maxed out - automatically passing");
+          this.time.delayedCall(1500, () => {
+            this.gameManager.placeBid(currentPlayer.id, null);
+          });
+        } else {
+          // Normal bidding UI with choices
+          this.statusText.setText("🎯 Your turn to bid!");
+          this.showBiddingUI();
+        }
       } else {
         // AI player bids automatically after a delay
         this.time.delayedCall(1000, () => {
@@ -358,14 +637,18 @@ export class GameScene extends Scene {
     this.statusText.setText("Play Phase - Playing cards...");
     this.highlightCurrentPlayer();
 
+    // Update turn indicator for play phase
+    const gameState = this.gameManager.getGameState();
+    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
+    const instruction = currentPlayer.isHuman ? "Your turn to play a card" : `${currentPlayer.name} is playing...`;
+    this.turnIndicator.showPlayerTurn(currentPlayer, instruction);
+
     // Show trick area and hide bidding display
     this.biddingDisplay.setVisible(false);
     this.trickArea.setVisible(true);
     this.updateGameInfo();
 
     // Check if current player is AI and start their turn
-    const gameState = this.gameManager.getGameState();
-    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
 
     if (!currentPlayer.isHuman) {
       console.log("🎮 AI player should play first card:", currentPlayer.name);
@@ -414,6 +697,9 @@ export class GameScene extends Scene {
     console.log(`🎯 Current playedCardSprites count:`, Object.keys(this.playedCardSprites).length);
 
     this.statusText.setText(`${winner?.name} wins the trick!`);
+
+    // Update last trick winner display
+    this.updateLastTrickWinnerDisplay(winner);
 
     // Highlight the trick winner
     this.highlightTrickWinner(winner);
@@ -503,6 +789,12 @@ export class GameScene extends Scene {
   private onNextHandStarted(_gameState: any): void {
     console.log("🔄 Next hand started event received");
     this.isHandCompleting = false;
+
+    // Update dealer borders for new hand (dealer may have rotated)
+    this.updateDealerBorders();
+
+    // Clear last trick winner for new hand
+    this.updateLastTrickWinnerDisplay(null);
 
     // Cancel any pending hand complete timers specifically
     this.handCompleteTimers.forEach((timer) => {
@@ -596,6 +888,13 @@ export class GameScene extends Scene {
         this.statusText.setText(`${currentPlayer.name} leads the next trick`);
         this.highlightCurrentPlayer();
 
+        // CRITICAL: Update turn indicator for new trick leader
+        console.log(`🎯 NEW TRICK: ${currentPlayer.name} leads (isHuman: ${currentPlayer.isHuman})`);
+        this.updateTurnIndicator();
+
+        // CRITICAL: Update card states for new trick leader
+        this.updateCardSelectionStates();
+
         if (!currentPlayer.isHuman) {
           // AI leads next trick
           this.time.delayedCall(1500, () => {
@@ -635,9 +934,15 @@ export class GameScene extends Scene {
       text.setStyle({ backgroundColor: "#444444" });
     });
 
-    // Highlight trick winner with a special color
+    // Hide all leader borders first
+    this.hideAllLeaderBorders();
+
+    // Highlight trick winner with special color and leader border
     if (winner && this.playerTexts[winner.id]) {
       this.playerTexts[winner.id].setStyle({ backgroundColor: "#FFD700" });
+
+      // Show leader border for the trick winner
+      this.showPlayerLeaderBorder(winner.id);
     }
   }
 
@@ -808,6 +1113,17 @@ export class GameScene extends Scene {
       .setOrigin(0.5);
     this.persistentBidDisplay.setVisible(false);
 
+    // Last trick winner display (below current bid display)
+    this.lastTrickWinnerDisplay = this.add
+      .text(width - 120, 80, "Last Trick: None", {
+        fontSize: "14px",
+        color: "#FFD700",
+        backgroundColor: "#2a5a3a",
+        padding: { x: 12, y: 6 },
+      })
+      .setOrigin(0.5);
+    this.lastTrickWinnerDisplay.setVisible(false);
+
     // Create bidding display
     this.createBiddingDisplay();
 
@@ -952,7 +1268,10 @@ export class GameScene extends Scene {
     Object.values(this.playedCardSprites).forEach((sprite) => sprite.destroy());
     this.playedCardSprites = {};
 
-    console.log("🎯 Trick cleared, playedCardSprites reset");
+    // Clear leader borders when trick is cleared
+    this.hideAllLeaderBorders();
+
+    console.log("🎯 Trick cleared, playedCardSprites reset, leader borders hidden");
   }
 
   private updateBiddingDisplay(): void {
@@ -1020,75 +1339,186 @@ export class GameScene extends Scene {
     }
   }
 
-  private onCardSelected(card: any): void {
+  /**
+   * Confirm the selected card play
+   */
+  private confirmCardPlay(): void {
+    if (!this.selectionState.selectedCard) return;
+
     const gameState = this.gameManager.getGameState();
+    const humanPlayer = gameState.players.find((p) => p.isHuman);
 
-    console.log("🎯 CARD SELECTED:", card.displayName);
+    if (!humanPlayer) return;
 
-    // Only allow card play during playing phase and if it's human player's turn
-    if (gameState.gamePhase !== "playing") {
-      this.statusText.setText("❌ Not in playing phase - wait for bidding to complete");
+    const card = this.selectionState.selectedCard;
+    console.log(`🎯 CONFIRMING CARD PLAY: ${card.displayName}`);
+
+    // Validate one more time before playing
+    const validation = validateCardPlay(card, humanPlayer, gameState);
+
+    if (!validation.valid) {
+      this.showInvalidSelectionFeedback(card, validation);
+      this.cancelCardSelection();
       return;
     }
 
-    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
-    if (!currentPlayer.isHuman) {
-      this.statusText.setText("❌ Not your turn - wait for other players");
-      return;
-    }
+    // Play the card
+    const success = this.gameManager.playCard(humanPlayer.id, card.id);
 
-    // CRITICAL CHECK: Verify player actually has cards
-    if (currentPlayer.hand.length === 0) {
-      console.error("🚨 CRITICAL: Player trying to play card but has no cards!");
-      this.statusText.setText("⚠️ Error: You have no cards to play");
-      return;
-    }
-
-    console.log(`🎯 Player has ${currentPlayer.hand.length} cards available`);
-    console.log(
-      `🎯 Player cards:`,
-      currentPlayer.hand.map((c) => c.displayName)
-    );
-
-    // Enhanced validation and feedback
-    const success = this.gameManager.playCard(currentPlayer.id, card.id);
     if (success) {
       this.statusText.setText(`✅ Played ${card.displayName} successfully`);
+      this.hideConfirmationUI();
+      this.clearSelection();
       this.updateHand();
       this.updateGameInfo();
 
-      // Continue with AI players after a short delay
+      // Force update turn indicator to ensure it's current
+      this.updateTurnIndicator();
+
+      // Update card states to match new turn
+      this.updateCardSelectionStates();
+
+      // Continue with AI players
       this.time.delayedCall(1000, () => {
         this.makeAIPlay();
       });
     } else {
-      // Get detailed invalid play reason
-      this.showInvalidPlayFeedback(card, gameState);
+      this.showInvalidSelectionFeedback(card, {
+        valid: false,
+        reason: "Card play failed",
+      });
+      this.cancelCardSelection();
     }
   }
 
-  private showInvalidPlayFeedback(card: any, gameState: any): void {
-    const currentTrick = gameState.currentHand.currentTrick;
-    const leadSuit = currentTrick?.leadSuit;
-    const trumpSuit = gameState.currentHand.trumpSuit;
+  /**
+   * Cancel card selection
+   */
+  private cancelCardSelection(): void {
+    console.log("🎯 CANCELLING CARD SELECTION");
+
+    this.hideConfirmationUI();
+    this.clearSelection();
+    this.updateCardSelectionStates();
+    this.updateGameStatus();
+  }
+
+  /**
+   * Clear current selection state
+   */
+  private clearSelection(): void {
+    this.selectionState = {
+      selectedCard: null,
+      confirmationRequired: true,
+      selectionTime: 0,
+    };
+  }
+
+  /**
+   * Hide confirmation UI
+   */
+  private hideConfirmationUI(): void {
+    this.confirmButton.setVisible(false);
+    this.cancelButton.setVisible(false);
+  }
+
+  /**
+   * Update visual selection states for all cards
+   */
+  private updateCardSelectionStates(): void {
+    const gameState = this.gameManager.getGameState();
+    const humanPlayer = gameState.players.find((p) => p.isHuman);
+
+    if (!humanPlayer) return;
+
+    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
+    const isHumanTurn = currentPlayer.id === humanPlayer.id;
+
+    console.log(
+      `🎯 UPDATING CARD STATES: Current player: ${currentPlayer.name}, isHuman: ${currentPlayer.isHuman}, isHumanTurn: ${isHumanTurn}`
+    );
+
+    this.cardSprites.forEach((sprite) => {
+      const card = sprite.getCard();
+      const isSelected = this.selectionState.selectedCard?.id === card.id;
+
+      const displayState = isHumanTurn
+        ? getCardDisplayState(card, humanPlayer, gameState, isSelected)
+        : {
+            playable: false,
+            selected: isSelected,
+            highlighted: false,
+            dimmed: true,
+            reason: `${currentPlayer.name} is playing - wait for your turn`,
+          };
+
+      sprite.setDisplayState(displayState);
+    });
+  }
+
+  /**
+   * Show feedback for invalid card selection
+   */
+  private showInvalidSelectionFeedback(_card: any, validation: any): void {
+    const errorType = getInteractionError(validation);
+    const message = getErrorDisplayMessage(errorType, {
+      reason: validation.reason,
+      currentPlayer: this.getCurrentPlayerName(),
+    });
+
+    this.statusText.setText(message);
+
+    // Play error feedback
+    this.playErrorFeedback();
+
+    // Auto-clear after 3 seconds
+    this.time.delayedCall(3000, () => {
+      this.updateGameStatus();
+    });
+  }
+
+  /**
+   * Play error feedback
+   */
+  private playErrorFeedback(): void {
+    // TODO: Add error audio feedback
+    // this.sound.play('error');
+
+    // Stronger haptic feedback for errors
+    if ("vibrate" in navigator) {
+      navigator.vibrate([100, 50, 100]);
+    }
+  }
+
+  /**
+   * Update game status text
+   */
+  private updateGameStatus(): void {
+    const gameState = this.gameManager.getGameState();
     const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
 
-    // Determine why the play is invalid
-    if (card.isJoker && !trumpSuit) {
-      this.statusText.setText("❌ Cannot lead with Joker - play a regular card first");
-    } else if (leadSuit && !card.canFollow(leadSuit, currentPlayer.hand, trumpSuit)) {
-      // Check if player has cards of the lead suit (accounting for off-jacks)
-      const hasLeadSuit = currentPlayer.hand.some(
-        (c: any) => c.suit === leadSuit && !c.isJoker && !c.isOffJack(trumpSuit)
-      );
-      if (hasLeadSuit) {
-        this.statusText.setText(`❌ Must follow ${leadSuit} suit - you have ${leadSuit} cards`);
+    if (gameState.gamePhase === "playing") {
+      if (currentPlayer.isHuman) {
+        this.statusText.setText("Your turn to play a card");
       } else {
-        this.statusText.setText(`❌ Cannot play ${card.displayName} - check suit following rules`);
+        this.statusText.setText(`${currentPlayer.name} is playing...`);
       }
-    } else {
-      this.statusText.setText(`❌ Invalid play: ${card.displayName}`);
+    } else if (gameState.gamePhase === "bidding") {
+      if (currentPlayer.isHuman) {
+        this.statusText.setText("Your turn to bid");
+      } else {
+        this.statusText.setText(`${currentPlayer.name} is bidding...`);
+      }
     }
+  }
+
+  /**
+   * Get current player name for error messages
+   */
+  private getCurrentPlayerName(): string {
+    const gameState = this.gameManager.getGameState();
+    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
+    return currentPlayer.name;
   }
 
   private makeAIPlay(): void {
@@ -1136,6 +1566,12 @@ export class GameScene extends Scene {
 
     if (success) {
       this.statusText.setText(`${currentPlayer.name} played ${cardToPlay.displayName}`);
+
+      // Force update turn indicator after AI play
+      this.updateTurnIndicator();
+
+      // Update card states after AI play
+      this.updateCardSelectionStates();
 
       // Continue AI turns or back to human
       this.time.delayedCall(1000, () => {
@@ -1220,6 +1656,12 @@ export class GameScene extends Scene {
     if (success) {
       this.statusText.setText(`${player.name} played ${retryCard.displayName}`);
 
+      // Force update turn indicator after AI retry
+      this.updateTurnIndicator();
+
+      // Update card states after AI retry
+      this.updateCardSelectionStates();
+
       // Continue the game flow
       this.time.delayedCall(1000, () => {
         const newState = this.gameManager.getGameState();
@@ -1238,6 +1680,111 @@ export class GameScene extends Scene {
   private getHumanPlayer(): Player | undefined {
     const gameState = this.gameManager.getGameState();
     return gameState.players.find((p) => p.isHuman);
+  }
+
+  /**
+   * Handle keyboard card selection
+   */
+  private onKeyboardCardSelected(event: any): void {
+    const { card, sprite } = event;
+    this.onEnhancedCardSelected(card, {
+      action: "select",
+      playable: sprite.getDisplayState().playable,
+      method: "keyboard",
+    });
+  }
+
+  /**
+   * Handle keyboard card confirmation
+   */
+  private onKeyboardCardConfirmed(_event: any): void {
+    this.confirmCardPlay();
+  }
+
+  /**
+   * Handle keyboard card cancellation
+   */
+  private onKeyboardCardCancelled(_event: any): void {
+    this.cancelCardSelection();
+  }
+
+  /**
+   * Handle accessibility announcements
+   */
+  private onAccessibilityAnnouncement(event: any): void {
+    // Update status text for visual users as well
+    this.statusText.setText(event.text);
+
+    // Auto-clear after 3 seconds unless it's an important message
+    if (!event.text.includes("Selected") && !event.text.includes("Error")) {
+      this.time.delayedCall(3000, () => {
+        this.updateGameStatus();
+      });
+    }
+  }
+
+  /**
+   * Handle card playability changes
+   */
+  private onCardPlayabilityChanged(_event: any): void {
+    // Update visual states when playability changes
+    this.updateCardSelectionStates();
+
+    // Update keyboard manager with new selectable cards
+    const selectableCards = this.cardSprites.filter((sprite) => sprite.getDisplayState().playable);
+    this.keyboardManager.updateSelectableCards(selectableCards);
+  }
+
+  /**
+   * Force update the turn indicator with current game state
+   */
+  private updateTurnIndicator(): void {
+    const gameState = this.gameManager.getGameState();
+    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
+
+    let instruction = "";
+    if (gameState.gamePhase === "bidding") {
+      instruction = currentPlayer.isHuman ? "Your turn to bid" : `${currentPlayer.name} is bidding...`;
+    } else if (gameState.gamePhase === "playing") {
+      instruction = currentPlayer.isHuman ? "Your turn to play a card" : `${currentPlayer.name} is playing...`;
+    }
+
+    console.log(`🔄 FORCE UPDATING turn indicator: ${currentPlayer.name} - ${instruction}`);
+    this.turnIndicator.showPlayerTurn(currentPlayer, instruction);
+  }
+
+  /**
+   * Handle current player changes
+   */
+  private onCurrentPlayerChanged(event: any): void {
+    console.log("🔄 CURRENT PLAYER CHANGED EVENT:", event);
+    const { currentPlayer, previousPlayer } = event;
+
+    // Update turn indicator
+    let instruction = "";
+    if (this.gameManager.getGameState().gamePhase === "bidding") {
+      instruction = currentPlayer.isHuman ? "Your turn to bid" : `${currentPlayer.name} is bidding...`;
+    } else if (this.gameManager.getGameState().gamePhase === "playing") {
+      instruction = currentPlayer.isHuman ? "Your turn to play a card" : `${currentPlayer.name} is playing...`;
+    }
+
+    console.log(`🔄 Updating turn indicator: ${currentPlayer.name} - ${instruction}`);
+    this.turnIndicator.showPlayerTurn(currentPlayer, instruction);
+
+    // Update card states when current player changes
+    this.updateCardSelectionStates();
+
+    // Clear any existing selection when turn changes
+    if (previousPlayer?.isHuman && !currentPlayer.isHuman) {
+      this.cancelCardSelection();
+    }
+
+    // Update keyboard navigation state
+    if (currentPlayer.isHuman) {
+      this.keyboardManager.enable();
+    } else {
+      this.keyboardManager.disable();
+    }
   }
 
   private updatePersistentBidDisplay(): void {
@@ -1335,6 +1882,9 @@ export class GameScene extends Scene {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
 
+    // Cleanup interaction components
+    this.cleanupInteractionComponents();
+
     // Create overlay
     const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.9).setOrigin(0);
 
@@ -1414,7 +1964,161 @@ export class GameScene extends Scene {
     });
 
     menuButton.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
+      this.cleanupInteractionComponents();
       this.scene.start("MenuScene");
     });
+  }
+
+  /**
+   * Cleanup interaction components when leaving scene
+   */
+  private cleanupInteractionComponents(): void {
+    // Cleanup keyboard manager
+    if (this.keyboardManager) {
+      this.keyboardManager.destroy();
+    }
+
+    // Cleanup turn indicator
+    if (this.turnIndicator) {
+      this.turnIndicator.hide();
+    }
+
+    // Hide any active tooltips
+    this.cardSprites.forEach((sprite) => {
+      sprite.hideTooltip();
+    });
+
+    // Cleanup tooltip pool
+    CardTooltip.destroyPool();
+
+    // Clear selection state
+    this.clearSelection();
+    this.hideConfirmationUI();
+  }
+
+  /**
+   * Handle enhanced card selection with validation
+   */
+  private onEnhancedCardSelected(card: any, _event: any): void {
+    const gameState = this.gameManager.getGameState();
+    const humanPlayer = gameState.players.find((p) => p.isHuman);
+
+    if (!humanPlayer) return;
+
+    const validation = validateCardPlay(card, humanPlayer, gameState);
+    if (!validation.valid) {
+      this.showInvalidSelectionFeedback(card, validation);
+      return;
+    }
+
+    this.selectionState = {
+      selectedCard: card,
+      confirmationRequired: requiresConfirmation(card, gameState),
+      selectionTime: Date.now(),
+    };
+
+    this.showConfirmationUI(card);
+  }
+
+  /**
+   * Handle enhanced card confirmation
+   */
+  private onEnhancedCardConfirmed(_card: any, _event: any): void {
+    this.confirmCardPlay();
+  }
+
+  /**
+   * Handle enhanced card cancellation
+   */
+  private onEnhancedCardCancelled(_card: any, _event: any): void {
+    this.cancelCardSelection();
+  }
+
+  /**
+   * Handle card hover start
+   */
+  private onCardHoverStart(card: any, event: any): void {
+    // Update status text with card info
+    if (event.playable) {
+      this.statusText.setText(`Hover: ${card.displayName} - Click to select`);
+    } else {
+      this.statusText.setText(`${card.displayName} - ${event.reason || "Cannot play"}`);
+    }
+  }
+
+  /**
+   * Handle card hover end
+   */
+  private onCardHoverEnd(_card: any, _event: any): void {
+    // Reset status text
+    this.updateGameStatus();
+  }
+
+  /**
+   * Handle card long press for mobile
+   */
+  private onCardLongPress(card: any, event: any): void {
+    // Show detailed card information or context menu
+    this.statusText.setText(`Long press: ${card.displayName} - ${event.reason || "Card info"}`);
+  }
+
+  /**
+   * Handle tooltip request with fresh game state
+   */
+  private onTooltipRequested(card: any, event: any): void {
+    const gameState = this.gameManager.getGameState();
+    const humanPlayer = gameState.players.find((p) => p.isHuman);
+
+    if (!humanPlayer) return;
+
+    const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
+    const isHumanTurn = currentPlayer.id === humanPlayer.id;
+
+    console.log(
+      `🏷️ TOOLTIP REQUEST: Card ${card.displayName}, Current player: ${currentPlayer.name} (isHuman: ${currentPlayer.isHuman}), isHumanTurn: ${isHumanTurn}`
+    );
+
+    // Get fresh display state
+    const displayState = isHumanTurn
+      ? getCardDisplayState(card, humanPlayer, gameState, this.selectionState.selectedCard?.id === card.id)
+      : {
+          playable: false,
+          selected: this.selectionState.selectedCard?.id === card.id,
+          highlighted: false,
+          dimmed: true,
+          reason: `${currentPlayer.name} is playing - wait for your turn`,
+        };
+
+    console.log(`🏷️ TOOLTIP DISPLAY STATE: playable=${displayState.playable}, reason="${displayState.reason}"`);
+
+    // Show tooltip with fresh information
+    event.tooltip.showForCard(card, event.x, event.y, displayState.playable, displayState.reason);
+  }
+
+  /**
+   * Show confirmation UI for selected card
+   */
+  private showConfirmationUI(card: any): void {
+    if (this.selectionState.confirmationRequired) {
+      this.confirmButton.setVisible(true);
+      this.cancelButton.setVisible(true);
+      this.statusText.setText(
+        `Selected ${card.displayName} - Click CONFIRM to play or CANCEL to choose different card`
+      );
+    } else {
+      // Auto-confirm for non-critical plays
+      this.time.delayedCall(500, () => {
+        this.confirmCardPlay();
+      });
+    }
+  }
+
+  /**
+   * Override destroy to cleanup resources
+   */
+  destroy(): void {
+    this.cleanupInteractionComponents();
+    // Note: Phaser Scene doesn't have a destroy method, use shutdown instead
+    this.scene.stop();
   }
 }
