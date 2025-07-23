@@ -36,16 +36,25 @@ describe("GameManager - Trick-Taking Logic (SB-002)", () => {
   });
 
   describe("Trump Hierarchy - Card.compareForTrump()", () => {
-    it("should rank joker as highest trump", () => {
+    it("should rank joker as 10.5 (beaten by face cards and ace)", () => {
       const joker = new Card(null, Rank.JOKER);
       const trumpAce = new Card(Suit.HEARTS, Rank.ACE);
       const trumpJack = new Card(Suit.HEARTS, Rank.JACK);
+      const trumpQueen = new Card(Suit.HEARTS, Rank.QUEEN);
+      const trumpKing = new Card(Suit.HEARTS, Rank.KING);
+      const trumpTen = new Card(Suit.HEARTS, Rank.TEN);
 
-      expect(joker.compareForTrump(trumpAce, Suit.HEARTS)).toBeGreaterThan(0);
-      expect(joker.compareForTrump(trumpJack, Suit.HEARTS)).toBeGreaterThan(0);
+      // Face cards and ace should beat joker
+      expect(trumpJack.compareForTrump(joker, Suit.HEARTS)).toBeGreaterThan(0);
+      expect(trumpQueen.compareForTrump(joker, Suit.HEARTS)).toBeGreaterThan(0);
+      expect(trumpKing.compareForTrump(joker, Suit.HEARTS)).toBeGreaterThan(0);
+      expect(trumpAce.compareForTrump(joker, Suit.HEARTS)).toBeGreaterThan(0);
+      
+      // Joker should beat ten and lower cards
+      expect(joker.compareForTrump(trumpTen, Suit.HEARTS)).toBeGreaterThan(0);
     });
 
-    it("should rank jack of trump as second highest trump", () => {
+    it("should rank jack of trump as highest trump", () => {
       const trumpJack = new Card(Suit.HEARTS, Rank.JACK);
       const offJack = new Card(Suit.DIAMONDS, Rank.JACK); // Same color as hearts
       const trumpAce = new Card(Suit.HEARTS, Rank.ACE);
@@ -54,7 +63,7 @@ describe("GameManager - Trick-Taking Logic (SB-002)", () => {
       expect(trumpJack.compareForTrump(trumpAce, Suit.HEARTS)).toBeGreaterThan(0);
     });
 
-    it("should rank off-jack as third highest trump", () => {
+    it("should rank off-jack as second highest trump", () => {
       const offJack = new Card(Suit.DIAMONDS, Rank.JACK); // Same color as hearts trump
       const trumpAce = new Card(Suit.HEARTS, Rank.ACE);
       const trumpKing = new Card(Suit.HEARTS, Rank.KING);
@@ -140,23 +149,23 @@ describe("GameManager - Trick-Taking Logic (SB-002)", () => {
       player2.hand = [trumpJack, ...player2.hand.slice(1)];
       gameManager.playCard(player2.id, trumpJack.id);
 
-      // Player 3: Play joker (should win)
+      // Player 3: Play joker (will lose to trump jack)
       const player3Index = gameManager.getGameState().currentHand.currentPlayerIndex;
       const player3 = players[player3Index];
       const joker = new Card(null, Rank.JOKER);
       player3.hand = [joker, ...player3.hand.slice(1)];
       gameManager.playCard(player3.id, joker.id);
 
-      // Player 4: Play off-jack
+      // Player 4: Play off-jack (will lose to trump jack)
       const player4Index = gameManager.getGameState().currentHand.currentPlayerIndex;
       const player4 = players[player4Index];
       const offJack = new Card(Suit.DIAMONDS, Rank.JACK); // Same color as hearts
       player4.hand = [offJack, ...player4.hand.slice(1)];
       gameManager.playCard(player4.id, offJack.id);
 
-      // Check that joker won
+      // Check that trump jack won (highest trump)
       const completedTricks = gameManager.getGameState().currentHand.tricks;
-      expect(completedTricks[0].winner).toBe(player3.id);
+      expect(completedTricks[0].winner).toBe(player2.id);
     });
 
     it("should determine winner when no trump cards played", () => {

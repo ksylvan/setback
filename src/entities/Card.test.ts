@@ -146,12 +146,22 @@ describe("Card", () => {
       expect(nonTrumpCard.compareForTrump(trumpCard, Suit.HEARTS)).toBe(-1);
     });
 
-    it("should handle joker as highest trump", () => {
+    it("should handle joker ranking as 10.5 (beaten by face cards and ace)", () => {
       const joker = new Card(null, Rank.JOKER);
       const jackOfHearts = new Card(Suit.HEARTS, Rank.JACK);
+      const queenOfHearts = new Card(Suit.HEARTS, Rank.QUEEN);
+      const kingOfHearts = new Card(Suit.HEARTS, Rank.KING);
+      const aceOfHearts = new Card(Suit.HEARTS, Rank.ACE);
+      const tenOfHearts = new Card(Suit.HEARTS, Rank.TEN);
 
-      expect(joker.compareForTrump(jackOfHearts, Suit.HEARTS)).toBe(1);
-      expect(jackOfHearts.compareForTrump(joker, Suit.HEARTS)).toBe(-1);
+      // Face cards and ace should beat joker
+      expect(jackOfHearts.compareForTrump(joker, Suit.HEARTS)).toBe(1);
+      expect(queenOfHearts.compareForTrump(joker, Suit.HEARTS)).toBe(1);
+      expect(kingOfHearts.compareForTrump(joker, Suit.HEARTS)).toBe(1);
+      expect(aceOfHearts.compareForTrump(joker, Suit.HEARTS)).toBe(1);
+      
+      // Joker should beat ten and lower cards
+      expect(joker.compareForTrump(tenOfHearts, Suit.HEARTS)).toBe(1);
     });
   });
 

@@ -96,11 +96,11 @@ export class Card implements ICard {
    * Returns: positive if this > other, negative if this < other, 0 if equal
    *
    * Trump hierarchy (high to low):
-   * 1. Joker (highest trump)
-   * 2. Jack of Trump Suit
-   * 3. Off-Jack (jack of same color as trump)
-   * 4. Ace of Trump
-   * 5. Other Trump Cards (K, Q, 10, 9, 8, 7, 6, 5, 4, 3, 2)
+   * 1. Jack of Trump Suit (highest)
+   * 2. Off-Jack (jack of same color as trump)
+   * 3. Ace, King, Queen of Trump
+   * 4. Joker (ranks as 10.5)
+   * 5. Other Trump Cards (10, 9, 8, 7, 6, 5, 4, 3, 2)
    */
   compareForTrump(other: Card, trumpSuit: Suit | null): number {
     const thisTrumpValue = this.getTrumpValue(trumpSuit);
@@ -108,7 +108,8 @@ export class Card implements ICard {
 
     // Compare trump values first
     if (thisTrumpValue !== otherTrumpValue) {
-      return thisTrumpValue - otherTrumpValue;
+      const diff = thisTrumpValue - otherTrumpValue;
+      return diff > 0 ? 1 : -1; // Normalize to 1 or -1
     }
 
     // If both are trump (same trump value category), compare within category
@@ -117,20 +118,21 @@ export class Card implements ICard {
     }
 
     // If both are non-trump, compare by rank
-    return this.rank - other.rank;
+    const rankDiff = this.rank - other.rank;
+    if (rankDiff === 0) return 0;
+    return rankDiff > 0 ? 1 : -1; // Normalize to 1 or -1
   }
 
   /**
    * Get trump value for hierarchy comparison
-   * Returns: 0 = non-trump, 1 = trump card, 2 = off-jack, 3 = jack of trump, 4 = joker
+   * Returns: 0 = non-trump, 1 = regular trump (including joker), 2 = off-jack, 3 = jack of trump
    */
   private getTrumpValue(trumpSuit: Suit | null): number {
     if (!trumpSuit) return 0;
 
-    if (this.isJoker) return 4; // Highest trump
-    if (this.rank === Rank.JACK && this.suit === trumpSuit) return 3; // Jack of trump
-    if (this.isOffJack(trumpSuit)) return 2; // Off-jack
-    if (this.suit === trumpSuit) return 1; // Regular trump card
+    if (this.rank === Rank.JACK && this.suit === trumpSuit) return 3; // Jack of trump (highest)
+    if (this.isOffJack(trumpSuit)) return 2; // Off-jack (second highest)
+    if (this.isJoker || this.suit === trumpSuit) return 1; // Regular trump cards (including joker)
 
     return 0; // Non-trump
   }
@@ -159,11 +161,30 @@ export class Card implements ICard {
       // Both cards are off-jacks, so suits are guaranteed to be non-null
       const thisSuitValue = this.suit ? suitOrder[this.suit] || 0 : 0;
       const otherSuitValue = other.suit ? suitOrder[other.suit] || 0 : 0;
-      return thisSuitValue - otherSuitValue;
+      const suitDiff = thisSuitValue - otherSuitValue;
+      if (suitDiff === 0) return 0;
+      return suitDiff > 0 ? 1 : -1;
     }
 
-    // Regular trump cards - compare by rank
-    return this.rank - other.rank;
+    // Regular trump cards and joker comparison
+    // Joker ranks as 10.5, so compare with special handling
+    if (this.isJoker && !other.isJoker) {
+      // Joker vs regular trump card - joker ranks as 10.5
+      // Face cards and ace beat joker
+      if (other.rank >= Rank.JACK) return -1; // Face cards beat joker
+      return 1; // Joker beats lower cards
+    }
+    
+    if (!this.isJoker && other.isJoker) {
+      // Regular trump vs joker
+      if (this.rank >= Rank.JACK) return 1; // Face cards beat joker
+      return -1; // Joker beats lower cards
+    }
+
+    // Both are regular trump cards - compare by rank
+    const rankDiff = this.rank - other.rank;
+    if (rankDiff === 0) return 0;
+    return rankDiff > 0 ? 1 : -1;
   }
 
   /**
