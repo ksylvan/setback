@@ -6,6 +6,7 @@ import {
   type GameConfig,
   GamePhase,
   type GameState,
+  type HandScoreResult,
   type Partnership,
   type Player,
   PlayerPosition,
@@ -653,8 +654,8 @@ export class GameManager extends EventEmitter {
     this.gameState.gamePhase = GamePhase.SCORING;
     this.emit("handCompleted", this.gameState.currentHand);
 
-    // TODO: Trigger scoring phase (will be implemented in SB-004)
-    // this.scoreHand();
+    // Trigger scoring phase
+    this.scoreHand();
 
     // For now, check if game should end or prepare next hand
     if (this.checkGameEnd()) {
@@ -671,6 +672,309 @@ export class GameManager extends EventEmitter {
         this.prepareNextHand();
       }
     }
+  }
+
+  /**
+   * Score the completed hand according to Setback rules
+   */
+  private scoreHand(): void {
+    console.log("🏆 Starting hand scoring...");
+
+    if (!this.gameState.currentHand.currentBid) {
+      throw new Error("Cannot score hand without a bid");
+    }
+
+    if (!this.gameState.currentHand.trumpSuit) {
+      throw new Error("Cannot score hand without trump suit");
+    }
+
+    const scoreResult = this.calculateHandScore();
+    console.log("🏆 Score calculation complete:", scoreResult);
+
+    this.updatePartnershipScores(scoreResult);
+    this.emit("handScored", scoreResult);
+  }
+
+  /**
+   * Calculate all scoring categories for the completed hand
+   */
+  private calculateHandScore(): HandScoreResult {
+    const tricks = this.gameState.currentHand.tricks;
+    const trumpSuit = this.gameState.currentHand.trumpSuit;
+    const currentBid = this.gameState.currentHand.currentBid;
+
+    if (!trumpSuit) throw new Error("Trump suit is required for scoring");
+    if (!currentBid) throw new Error("Current bid is required for scoring");
+
+    // Find bidding partnership
+    const biddingPlayer = this.gameState.players.find((p) => p.id === currentBid.playerId);
+    if (!biddingPlayer) throw new Error("Bidding player not found");
+
+    const biddingPartnership = this.getPartnership(biddingPlayer.id);
+    if (!biddingPartnership) throw new Error("Bidding partnership not found");
+
+    const nonBiddingPartnership = this.gameState.partnerships.find((p) => p.id !== biddingPartnership.id);
+    if (!nonBiddingPartnership) throw new Error("Non-bidding partnership not found");
+
+    console.log(`🏆 Scoring hand with trump: ${trumpSuit}, bid: ${currentBid.amount}`);
+    console.log(`🏆 Bidding partnership: ${biddingPartnership.id}`);
+
+    // Calculate each scoring category
+    const high = this.findHighestTrump(tricks, trumpSuit);
+    const low = this.findLowestTrump(tricks, trumpSuit);
+    const jack = this.findJackOfTrump(tricks, trumpSuit);
+    const offJack = this.findOffJack(tricks, trumpSuit);
+    const joker = this.findJoker(tricks);
+    const game = this.calculateGamePoints(tricks);
+
+    // Count points earned by bidding partnership
+    let biddingPartnershipPoints = 0;
+    if (high && high.winner === biddingPartnership.id) biddingPartnershipPoints++;
+    if (low && low.winner === biddingPartnership.id) biddingPartnershipPoints++;
+    if (jack && jack.winner === biddingPartnership.id) biddingPartnershipPoints++;
+    if (offJack && offJack.winner === biddingPartnership.id) biddingPartnershipPoints++;
+    if (joker && joker.winner === biddingPartnership.id) biddingPartnershipPoints++;
+    if (game && game.winner === biddingPartnership.id) biddingPartnershipPoints++;
+
+    // Count points earned by non-bidding partnership
+    let nonBiddingPartnershipPoints = 0;
+    if (high && high.winner === nonBiddingPartnership.id) nonBiddingPartnershipPoints++;
+    if (low && low.winner === nonBiddingPartnership.id) nonBiddingPartnershipPoints++;
+    if (jack && jack.winner === nonBiddingPartnership.id) nonBiddingPartnershipPoints++;
+    if (offJack && offJack.winner === nonBiddingPartnership.id) nonBiddingPartnershipPoints++;
+    if (joker && joker.winner === nonBiddingPartnership.id) nonBiddingPartnershipPoints++;
+    if (game && game.winner === nonBiddingPartnership.id) nonBiddingPartnershipPoints++;
+
+    const bidMade = biddingPartnershipPoints >= currentBid.amount;
+
+    console.log(`🏆 Bidding partnership earned ${biddingPartnershipPoints} points (needed ${currentBid.amount})`);
+    console.log(`🏆 Non-bidding partnership earned ${nonBiddingPartnershipPoints} points`);
+    console.log(`🏆 Bid made: ${bidMade}`);
+
+    return {
+      points: { high, low, jack, offJack, joker, game },
+      bidMade,
+      biddingPartnership: biddingPartnership.id,
+      nonBiddingPartnership: nonBiddingPartnership.id,
+      biddingPartnershipPoints,
+      nonBiddingPartnershipPoints,
+    };
+  }
+
+  /**
+   * Calculate small points (game points) for each partnership
+   */
+  private calculateGamePoints(tricks: Trick[]): { winner: string; smallPoints: number } | null {
+    const partnershipPoints = new Map<string, number>();
+
+    // Initialize partnership points
+    this.gameState.partnerships.forEach((partnership) => {
+      partnershipPoints.set(partnership.id, 0);
+    });
+
+    // Sum small points from all tricks
+    tricks.forEach((trick) => {
+      trick.cards.forEach((cardPlay) => {
+        const card = cardPlay.card;
+        const partnership = this.getPartnership(cardPlay.playerId);
+        if (partnership) {
+          const currentPoints = partnershipPoints.get(partnership.id) || 0;
+          partnershipPoints.set(partnership.id, currentPoints + card.pointValue);
+        }
+      });
+    });
+
+    console.log("🏆 Small points by partnership:");
+    partnershipPoints.forEach((points, partnershipId) => {
+      console.log(`🏆   ${partnershipId}: ${points} points`);
+    });
+
+    // Find partnership with most small points
+    let maxPoints = 0;
+    let winningPartnership = "";
+
+    partnershipPoints.forEach((points, partnershipId) => {
+      if (points > maxPoints) {
+        maxPoints = points;
+        winningPartnership = partnershipId;
+      } else if (points === maxPoints && maxPoints > 0) {
+        // Tie-breaking: bidding partnership wins
+        const currentBid = this.gameState.currentHand.currentBid;
+        if (!currentBid) return { winner: winningPartnership, smallPoints: maxPoints };
+
+        const biddingPlayer = this.gameState.players.find((p) => p.id === currentBid.playerId);
+        if (!biddingPlayer) return { winner: winningPartnership, smallPoints: maxPoints };
+
+        const biddingPartnership = this.getPartnership(biddingPlayer.id);
+        if (!biddingPartnership) return { winner: winningPartnership, smallPoints: maxPoints };
+
+        if (partnershipId === biddingPartnership.id) {
+          winningPartnership = partnershipId;
+        }
+      }
+    });
+
+    if (maxPoints === 0) {
+      console.log("🏆 No small points earned by any partnership");
+      return null;
+    }
+
+    console.log(`🏆 Game point winner: ${winningPartnership} with ${maxPoints} small points`);
+    return { winner: winningPartnership, smallPoints: maxPoints };
+  }
+
+  /**
+   * Find the highest trump card taken in all tricks
+   */
+  private findHighestTrump(tricks: Trick[], trumpSuit: Suit): { winner: string; card: Card } | null {
+    let highestTrump: { winner: string; card: Card } | null = null;
+
+    tricks.forEach((trick) => {
+      trick.cards.forEach((cardPlay) => {
+        const card = cardPlay.card;
+
+        if (card.isTrump(trumpSuit)) {
+          if (!highestTrump || card.compareForTrump(highestTrump.card, trumpSuit) > 0) {
+            const partnership = this.getPartnership(cardPlay.playerId);
+            if (partnership) {
+              highestTrump = { winner: partnership.id, card };
+            }
+          }
+        }
+      });
+    });
+
+    console.log("🏆 High trump search complete:", highestTrump ? "found" : "not found");
+
+    return highestTrump;
+  }
+
+  /**
+   * Find the lowest trump card taken in all tricks
+   */
+  private findLowestTrump(tricks: Trick[], trumpSuit: Suit): { winner: string; card: Card } | null {
+    let lowestTrump: { winner: string; card: Card } | null = null;
+
+    tricks.forEach((trick) => {
+      trick.cards.forEach((cardPlay) => {
+        const card = cardPlay.card;
+
+        if (card.isTrump(trumpSuit)) {
+          if (!lowestTrump || card.compareForTrump(lowestTrump.card, trumpSuit) < 0) {
+            const partnership = this.getPartnership(cardPlay.playerId);
+            if (partnership) {
+              lowestTrump = { winner: partnership.id, card };
+            }
+          }
+        }
+      });
+    });
+
+    console.log("🏆 Low trump search complete:", lowestTrump ? "found" : "not found");
+
+    return lowestTrump;
+  }
+
+  /**
+   * Find the jack of trump if it was dealt and taken
+   */
+  private findJackOfTrump(tricks: Trick[], trumpSuit: Suit): { winner: string; card: Card } | null {
+    for (const trick of tricks) {
+      for (const cardPlay of trick.cards) {
+        const card = cardPlay.card;
+
+        if (!card.isJoker && card.suit === trumpSuit && card.rank === 11) {
+          // Jack
+          const partnership = this.getPartnership(cardPlay.playerId);
+          if (partnership) {
+            console.log(`🏆 Jack of trump: ${card.displayName} won by ${partnership.id}`);
+            return { winner: partnership.id, card };
+          }
+        }
+      }
+    }
+
+    console.log("🏆 Jack of trump: not found in tricks");
+    return null;
+  }
+
+  /**
+   * Find the off-jack (jack of same color as trump) if it was dealt and taken
+   */
+  private findOffJack(tricks: Trick[], trumpSuit: Suit): { winner: string; card: Card } | null {
+    for (const trick of tricks) {
+      for (const cardPlay of trick.cards) {
+        const card = cardPlay.card;
+
+        if (card.isOffJack(trumpSuit)) {
+          const partnership = this.getPartnership(cardPlay.playerId);
+          if (partnership) {
+            console.log(`🏆 Off-jack: ${card.displayName} won by ${partnership.id}`);
+            return { winner: partnership.id, card };
+          }
+        }
+      }
+    }
+
+    console.log("🏆 Off-jack: not found in tricks");
+    return null;
+  }
+
+  /**
+   * Find the joker if it was dealt and taken
+   */
+  private findJoker(tricks: Trick[]): { winner: string; card: Card } | null {
+    for (const trick of tricks) {
+      for (const cardPlay of trick.cards) {
+        const card = cardPlay.card;
+
+        if (card.isJoker) {
+          const partnership = this.getPartnership(cardPlay.playerId);
+          if (partnership) {
+            console.log(`🏆 Joker: ${card.displayName} won by ${partnership.id}`);
+            return { winner: partnership.id, card };
+          }
+        }
+      }
+    }
+
+    console.log("🏆 Joker: not found in tricks");
+    return null;
+  }
+
+  /**
+   * Update partnership scores based on hand scoring results
+   */
+  private updatePartnershipScores(scoreResult: HandScoreResult): void {
+    const biddingPartnership = this.gameState.partnerships.find((p) => p.id === scoreResult.biddingPartnership);
+    const nonBiddingPartnership = this.gameState.partnerships.find((p) => p.id === scoreResult.nonBiddingPartnership);
+    const currentBid = this.gameState.currentHand.currentBid;
+
+    if (!biddingPartnership) throw new Error("Bidding partnership not found for scoring");
+    if (!nonBiddingPartnership) throw new Error("Non-bidding partnership not found for scoring");
+    if (!currentBid) throw new Error("Current bid not found for scoring");
+
+    console.log("🏆 Updating partnership scores...");
+    console.log(
+      `🏆 Before - ${biddingPartnership.id}: ${biddingPartnership.score}, ${nonBiddingPartnership.id}: ${nonBiddingPartnership.score}`
+    );
+
+    // Bidding partnership: gets bid amount if made, loses bid amount if failed
+    if (scoreResult.bidMade) {
+      biddingPartnership.score += currentBid.amount;
+      console.log(`🏆 Bidding partnership made bid - added ${currentBid.amount} points`);
+    } else {
+      biddingPartnership.score -= currentBid.amount;
+      console.log(`🏆 Bidding partnership failed bid - subtracted ${currentBid.amount} points`);
+    }
+
+    // Non-bidding partnership always gets actual points earned
+    nonBiddingPartnership.score += scoreResult.nonBiddingPartnershipPoints;
+    console.log(`🏆 Non-bidding partnership earned ${scoreResult.nonBiddingPartnershipPoints} points`);
+
+    console.log(
+      `🏆 After - ${biddingPartnership.id}: ${biddingPartnership.score}, ${nonBiddingPartnership.id}: ${nonBiddingPartnership.score}`
+    );
   }
 
   /**

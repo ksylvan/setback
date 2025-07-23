@@ -64,6 +64,7 @@ export class GameScene extends Scene {
     this.gameManager.on("invalidPlay", this.onInvalidPlay.bind(this));
     this.gameManager.on("trickComplete", this.onTrickComplete.bind(this));
     this.gameManager.on("handCompleted", this.onHandComplete.bind(this));
+    this.gameManager.on("handScored", this.onHandScored.bind(this));
     this.gameManager.on("nextHandStarted", this.onNextHandStarted.bind(this));
     this.gameManager.on("deckReshuffled", this.onDeckReshuffled.bind(this));
   }
@@ -257,13 +258,9 @@ export class GameScene extends Scene {
       return false;
     }
 
-    // If there's a lead suit, check if we can follow
-    if (leadSuit && card.suit !== leadSuit && !card.isJoker) {
-      // Check if player has cards of the lead suit
-      const hasLeadSuit = humanPlayer.hand.some((c: any) => c.suit === leadSuit && !c.isJoker);
-      if (hasLeadSuit) {
-        return false; // Must follow suit
-      }
+    // If there's a lead suit, use the Card's proper canFollow method
+    if (leadSuit) {
+      return card.canFollow(leadSuit, humanPlayer.hand, trumpSuit);
     }
 
     return true;
@@ -467,6 +464,36 @@ export class GameScene extends Scene {
       this.handCompleteTimers.push(timer2);
     });
     this.handCompleteTimers.push(timer1);
+  }
+
+  private onHandScored(scoreResult: any): void {
+    console.log("🏆 Hand scored event received:", scoreResult);
+
+    // Update the partnership scores display
+    this.updateScores();
+
+    // Show scoring information
+    const bidMadeText = scoreResult.bidMade ? "made" : "failed";
+    this.statusText.setText(`Hand scored - Bid ${bidMadeText}! Updating scores...`);
+
+    // Log detailed scoring breakdown
+    console.log("🏆 Scoring breakdown:");
+    console.log(
+      `🏆   Bidding partnership (${scoreResult.biddingPartnership}): ${scoreResult.biddingPartnershipPoints} points`
+    );
+    console.log(
+      `🏆   Non-bidding partnership (${scoreResult.nonBiddingPartnership}): ${scoreResult.nonBiddingPartnershipPoints} points`
+    );
+    console.log(`🏆   Bid ${bidMadeText}`);
+
+    // Show detailed point breakdown
+    const points = scoreResult.points;
+    if (points.high) console.log(`🏆   High trump: ${points.high.winner}`);
+    if (points.low) console.log(`🏆   Low trump: ${points.low.winner}`);
+    if (points.jack) console.log(`🏆   Jack of trump: ${points.jack.winner}`);
+    if (points.offJack) console.log(`🏆   Off-jack: ${points.offJack.winner}`);
+    if (points.joker) console.log(`🏆   Joker: ${points.joker.winner}`);
+    if (points.game) console.log(`🏆   Game points: ${points.game.winner} (${points.game.smallPoints} small points)`);
   }
 
   private onNextHandStarted(_gameState: any): void {
@@ -1018,13 +1045,15 @@ export class GameScene extends Scene {
     // Determine why the play is invalid
     if (card.isJoker && !trumpSuit) {
       this.statusText.setText("❌ Cannot lead with Joker - play a regular card first");
-    } else if (leadSuit && card.suit !== leadSuit) {
-      // Check if player has cards of the lead suit
-      const hasLeadSuit = currentPlayer.hand.some((c: any) => c.suit === leadSuit && !c.isJoker);
+    } else if (leadSuit && !card.canFollow(leadSuit, currentPlayer.hand, trumpSuit)) {
+      // Check if player has cards of the lead suit (accounting for off-jacks)
+      const hasLeadSuit = currentPlayer.hand.some(
+        (c: any) => c.suit === leadSuit && !c.isJoker && !c.isOffJack(trumpSuit)
+      );
       if (hasLeadSuit) {
         this.statusText.setText(`❌ Must follow ${leadSuit} suit - you have ${leadSuit} cards`);
       } else {
-        this.statusText.setText(`❌ Unexpected error playing ${card.displayName}`);
+        this.statusText.setText(`❌ Cannot play ${card.displayName} - check suit following rules`);
       }
     } else {
       this.statusText.setText(`❌ Invalid play: ${card.displayName}`);

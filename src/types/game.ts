@@ -123,3 +123,20 @@ export interface SmallPoints {
   ace: number; // 4 points
   ten: number; // 10 points
 }
+
+// Detailed scoring result for a completed hand
+export interface HandScoreResult {
+  points: {
+    high: { winner: string; card: Card } | null;
+    low: { winner: string; card: Card } | null;
+    jack: { winner: string; card: Card } | null;
+    offJack: { winner: string; card: Card } | null;
+    joker: { winner: string; card: Card } | null;
+    game: { winner: string; smallPoints: number } | null;
+  };
+  bidMade: boolean;
+  biddingPartnership: string;
+  nonBiddingPartnership: string;
+  biddingPartnershipPoints: number;
+  nonBiddingPartnershipPoints: number;
+}
