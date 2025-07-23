@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Card } from "@/entities/Card";
-import { Rank, Suit } from "@/types/game";
 import { GameManager } from "@/managers/GameManager";
+import { Rank, Suit } from "@/types/game";
 
 /**
  * Comprehensive test suite to verify the joker rule fixes:
@@ -12,7 +12,7 @@ describe("Joker Rules Verification Tests", () => {
   describe("Joker Trump Hierarchy (10.5 Ranking)", () => {
     it("should verify complete trump hierarchy with joker as 10.5", () => {
       const trumpSuit = Suit.HEARTS;
-      
+
       // Create all trump cards
       const joker = new Card(null, Rank.JOKER);
       const jackOfTrump = new Card(Suit.HEARTS, Rank.JACK);
@@ -24,7 +24,7 @@ describe("Joker Rules Verification Tests", () => {
       const nineOfTrump = new Card(Suit.HEARTS, Rank.NINE);
 
       // Verify hierarchy: Jack > Off-Jack > Ace > King > Queen > Joker > Ten > Nine
-      
+
       // 1. Jack of trump beats everyone
       expect(jackOfTrump.compareForTrump(offJack, trumpSuit)).toBe(1);
       expect(jackOfTrump.compareForTrump(aceOfTrump, trumpSuit)).toBe(1);
@@ -60,22 +60,22 @@ describe("Joker Rules Verification Tests", () => {
 
     it("should verify joker loses to all face cards across different trump suits", () => {
       const joker = new Card(null, Rank.JOKER);
-      
+
       // Test with all trump suits
       const trumpSuits = [Suit.HEARTS, Suit.DIAMONDS, Suit.CLUBS, Suit.SPADES];
-      
-      trumpSuits.forEach(trumpSuit => {
+
+      trumpSuits.forEach((trumpSuit) => {
         const jackOfTrump = new Card(trumpSuit, Rank.JACK);
         const aceOfTrump = new Card(trumpSuit, Rank.ACE);
         const kingOfTrump = new Card(trumpSuit, Rank.KING);
         const queenOfTrump = new Card(trumpSuit, Rank.QUEEN);
-        
+
         // All face cards should beat joker
         expect(jackOfTrump.compareForTrump(joker, trumpSuit)).toBe(1);
         expect(aceOfTrump.compareForTrump(joker, trumpSuit)).toBe(1);
         expect(kingOfTrump.compareForTrump(joker, trumpSuit)).toBe(1);
         expect(queenOfTrump.compareForTrump(joker, trumpSuit)).toBe(1);
-        
+
         // Joker should lose to all face cards
         expect(joker.compareForTrump(jackOfTrump, trumpSuit)).toBe(-1);
         expect(joker.compareForTrump(aceOfTrump, trumpSuit)).toBe(-1);
@@ -117,7 +117,7 @@ describe("Joker Rules Verification Tests", () => {
 
       // Create a trick where face card should beat joker
       const players = gameManager.getGameState().players;
-      
+
       // Player 2: Ace of trump (should win)
       const player2Index = gameManager.getGameState().currentHand.currentPlayerIndex;
       const player2 = players[player2Index];
@@ -175,7 +175,7 @@ describe("Joker Rules Verification Tests", () => {
       // Establish trump with first card
       state = gameManager.getGameState();
       const bidWinner = state.players[state.currentHand.currentPlayerIndex];
-      const trumpCard = bidWinner.hand.find(card => !card.isJoker) || new Card(Suit.HEARTS, Rank.ACE);
+      const trumpCard = bidWinner.hand.find((card) => !card.isJoker) || new Card(Suit.HEARTS, Rank.ACE);
       if (!bidWinner.hand.includes(trumpCard)) {
         bidWinner.hand[0] = trumpCard;
       }
@@ -234,7 +234,7 @@ describe("Joker Rules Verification Tests", () => {
       const trickLeader = state.players[state.currentHand.currentPlayerIndex];
 
       // Leader plays a non-joker card first
-      const leadCard = trickLeader.hand.find(card => !card.isJoker) || new Card(Suit.CLUBS, Rank.KING);
+      const leadCard = trickLeader.hand.find((card) => !card.isJoker) || new Card(Suit.CLUBS, Rank.KING);
       if (!trickLeader.hand.includes(leadCard)) {
         trickLeader.hand[0] = leadCard;
       }
@@ -243,7 +243,7 @@ describe("Joker Rules Verification Tests", () => {
       // Next player follows with joker (should be allowed)
       const nextState = gameManager.getGameState();
       const follower = nextState.players[nextState.currentHand.currentPlayerIndex];
-      
+
       // Ensure follower has multiple cards including joker
       while (follower.hand.length < 3) {
         follower.hand.push(new Card(Suit.SPADES, Rank.SEVEN));
@@ -264,15 +264,15 @@ describe("Joker Rules Verification Tests", () => {
         { handSize: 6, shouldFail: true, description: "6 cards including joker" },
       ];
 
-      scenarios.forEach(scenario => {
+      scenarios.forEach((scenario) => {
         const state = gameManager.getGameState();
         const trickLeader = state.players[state.currentHand.currentPlayerIndex];
-        
+
         // Set up hand with specified size
         trickLeader.hand.length = 0;
         const joker = new Card(null, Rank.JOKER);
         trickLeader.hand.push(joker);
-        
+
         // Add additional cards if needed
         for (let i = 1; i < scenario.handSize; i++) {
           trickLeader.hand.push(new Card(Suit.SPADES, Rank.TWO + i));
@@ -285,7 +285,7 @@ describe("Joker Rules Verification Tests", () => {
       // Test the success case separately
       const state = gameManager.getGameState();
       const trickLeader = state.players[state.currentHand.currentPlayerIndex];
-      
+
       // Clear hand and leave only joker
       trickLeader.hand.length = 0;
       const joker = new Card(null, Rank.JOKER);
@@ -324,7 +324,7 @@ describe("Joker Rules Verification Tests", () => {
       // Test scenario: Joker vs Face Card hierarchy in actual trick
       state = gameManager.getGameState();
       const players = state.players;
-      
+
       // Player 1 (bid winner): Establish trump with 2 of hearts
       const player1 = players[state.currentHand.currentPlayerIndex];
       const trumpEstablisher = new Card(Suit.HEARTS, Rank.TWO);
@@ -358,11 +358,11 @@ describe("Joker Rules Verification Tests", () => {
       // If they try to lead with joker when having multiple cards, it should fail
       const nextTrickLeader = players[gameManager.getGameState().currentHand.currentPlayerIndex];
       expect(nextTrickLeader.id).toBe(player3.id); // Verify King winner leads next trick
-      
+
       // Add joker to winner's hand and try to lead with it
       const anotherJoker = new Card(null, Rank.JOKER);
       nextTrickLeader.hand.push(anotherJoker);
-      
+
       // Should fail because leader has multiple cards
       const leadingJokerResult = gameManager.playCard(nextTrickLeader.id, anotherJoker.id);
       expect(leadingJokerResult).toBe(false);

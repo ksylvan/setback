@@ -159,7 +159,7 @@ describe("Card", () => {
       expect(queenOfHearts.compareForTrump(joker, Suit.HEARTS)).toBe(1);
       expect(kingOfHearts.compareForTrump(joker, Suit.HEARTS)).toBe(1);
       expect(aceOfHearts.compareForTrump(joker, Suit.HEARTS)).toBe(1);
-      
+
       // Joker should beat ten and lower cards
       expect(joker.compareForTrump(tenOfHearts, Suit.HEARTS)).toBe(1);
     });

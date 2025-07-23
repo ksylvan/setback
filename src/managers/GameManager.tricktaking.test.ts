@@ -49,7 +49,7 @@ describe("GameManager - Trick-Taking Logic (SB-002)", () => {
       expect(trumpQueen.compareForTrump(joker, Suit.HEARTS)).toBeGreaterThan(0);
       expect(trumpKing.compareForTrump(joker, Suit.HEARTS)).toBeGreaterThan(0);
       expect(trumpAce.compareForTrump(joker, Suit.HEARTS)).toBeGreaterThan(0);
-      
+
       // Joker should beat ten and lower cards
       expect(joker.compareForTrump(trumpTen, Suit.HEARTS)).toBeGreaterThan(0);
     });

@@ -174,7 +174,7 @@ export class Card implements ICard {
       if (other.rank >= Rank.JACK) return -1; // Face cards beat joker
       return 1; // Joker beats lower cards
     }
-    
+
     if (!this.isJoker && other.isJoker) {
       // Regular trump vs joker
       if (this.rank >= Rank.JACK) return 1; // Face cards beat joker
