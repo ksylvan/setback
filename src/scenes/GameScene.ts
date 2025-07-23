@@ -28,7 +28,10 @@ export class GameScene extends Scene {
   private trickArea!: Phaser.GameObjects.Container;
   private playedCardSprites: { [playerId: string]: CardSprite } = {};
   private isHandCompleting: boolean = false;
-  private completedHandData: { tricksPlayed: number; trumpSuit: string } | null = null;
+  private completedHandData: {
+    tricksPlayed: number;
+    trumpSuit: string;
+  } | null = null;
   private handCompleteTimers: Phaser.Time.TimerEvent[] = [];
 
   constructor() {
@@ -67,6 +70,7 @@ export class GameScene extends Scene {
     this.gameManager.on("handScored", this.onHandScored.bind(this));
     this.gameManager.on("nextHandStarted", this.onNextHandStarted.bind(this));
     this.gameManager.on("deckReshuffled", this.onDeckReshuffled.bind(this));
+    this.gameManager.on("gameEnded", this.onGameEnded.bind(this));
   }
 
   private createUI(): void {
@@ -535,6 +539,31 @@ export class GameScene extends Scene {
     });
   }
 
+  private onGameEnded(gameEndData: any): void {
+    console.log("🏆 Game ended event received:", gameEndData);
+
+    const { winner, finalScores, targetScore } = gameEndData;
+
+    // Update status to show game completion
+    this.statusText.setText(`🏆 Game Over! ${winner.id} wins with ${winner.score} points!`);
+
+    // Log detailed game completion info
+    console.log(`🏆 Game winner: ${winner.id} with ${winner.score}/${targetScore} points`);
+    console.log("🏆 Final scores:");
+    finalScores.forEach((partnership: any) => {
+      console.log(`🏆   ${partnership.id}: ${partnership.score} points`);
+    });
+
+    // Hide any active game UI elements
+    this.biddingDisplay.setVisible(false);
+    this.trickArea.setVisible(false);
+
+    // Show game over UI after a brief delay
+    this.time.delayedCall(2000, () => {
+      this.showGameOverUI(winner, finalScores, targetScore);
+    });
+  }
+
   private continueAfterTrick(): void {
     const gameState = this.gameManager.getGameState();
     const currentPlayer = gameState.players[gameState.currentHand.currentPlayerIndex];
@@ -594,7 +623,9 @@ export class GameScene extends Scene {
 
     // Highlight current player
     if (this.playerTexts[currentPlayer.id]) {
-      this.playerTexts[currentPlayer.id].setStyle({ backgroundColor: "#6a4c93" });
+      this.playerTexts[currentPlayer.id].setStyle({
+        backgroundColor: "#6a4c93",
+      });
     }
   }
 
@@ -1297,6 +1328,93 @@ export class GameScene extends Scene {
         { name: "North AI", isHuman: false },
         { name: "East AI", isHuman: false },
       ],
+    });
+  }
+
+  private showGameOverUI(winner: any, finalScores: any[], targetScore: number): void {
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+
+    // Create overlay
+    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.9).setOrigin(0);
+
+    // Game Over title
+    const titleText = this.add
+      .text(width / 2, height / 2 - 120, "🏆 GAME OVER! 🏆", {
+        fontSize: "36px",
+        color: "#FFD700",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+
+    // Winner announcement
+    const winnerLabel = winner.id === "ns_partnership" ? "North/South" : "East/West";
+    const winnerText = this.add
+      .text(width / 2, height / 2 - 70, `${winnerLabel} Partnership Wins!`, {
+        fontSize: "24px",
+        color: "#FFD700",
+      })
+      .setOrigin(0.5);
+
+    // Final scores display
+    const scoresText = finalScores
+      .map((partnership) => {
+        const label = partnership.id === "ns_partnership" ? "North/South" : "East/West";
+        return `${label}: ${partnership.score} points`;
+      })
+      .join("\n");
+
+    const finalScoresText = this.add
+      .text(width / 2, height / 2 - 20, `Final Scores:\n${scoresText}\n\nTarget: ${targetScore} points`, {
+        fontSize: "18px",
+        color: "#ffffff",
+        align: "center",
+      })
+      .setOrigin(0.5);
+
+    // New Game button
+    const newGameButton = this.add
+      .text(width / 2 - 100, height / 2 + 80, "NEW GAME", {
+        fontSize: "20px",
+        color: "#ffffff",
+        backgroundColor: "#4a7c59",
+        padding: { x: 20, y: 12 },
+      })
+      .setOrigin(0.5);
+
+    // Main Menu button
+    const menuButton = this.add
+      .text(width / 2 + 100, height / 2 + 80, "MAIN MENU", {
+        fontSize: "20px",
+        color: "#ffffff",
+        backgroundColor: "#666666",
+        padding: { x: 20, y: 12 },
+      })
+      .setOrigin(0.5);
+
+    // Add interactivity
+    newGameButton.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
+      // Clean up UI elements
+      overlay.destroy();
+      titleText.destroy();
+      winnerText.destroy();
+      finalScoresText.destroy();
+      newGameButton.destroy();
+      menuButton.destroy();
+
+      // Start a new game
+      this.scene.restart({
+        players: [
+          { name: "You", isHuman: true },
+          { name: "West AI", isHuman: false },
+          { name: "North AI", isHuman: false },
+          { name: "East AI", isHuman: false },
+        ],
+      });
+    });
+
+    menuButton.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
+      this.scene.start("MenuScene");
     });
   }
 }

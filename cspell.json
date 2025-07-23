@@ -3,6 +3,7 @@
 		"cardplay",
 		"dblclick",
 		"Funcs",
+		"gameend",
 		"interruptible",
 		"kenney",
 		"orientationchange",
