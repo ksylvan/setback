@@ -144,3 +144,37 @@ export interface HandScoreResult {
   biddingPartnershipPoints: number;
   nonBiddingPartnershipPoints: number;
 }
+
+// AI-specific types for SB-011 implementation
+export interface HandEvaluation {
+  trumpStrength: Map<Suit, number>; // Potential trump strength per suit
+  pointCards: number; // High-value cards (J, Q, K, A, 10)
+  specialCards: {
+    joker: boolean;
+    jacks: Suit[]; // Jacks in hand
+  };
+  trickPotential: Map<Suit, number>; // Estimated tricks per suit
+  overallStrength: number; // 0-100 hand strength score
+}
+
+export interface AIBiddingProfile {
+  personality: AIPersonality;
+  riskTolerance: number; // 0.5-1.5 multiplier
+  aggressionLevel: number; // 0.5-1.5 multiplier
+  partnershipWeight: number; // How much to consider partner
+}
+
+export enum AIPersonality {
+  CONSERVATIVE = "conservative",
+  BALANCED = "balanced",
+  AGGRESSIVE = "aggressive",
+  ADAPTIVE = "adaptive",
+}
+
+export enum HandStrength {
+  VERY_WEAK = 0, // < 20: Always pass unless dealer stuck
+  WEAK = 20, // 20-35: Only bid 2-3 if no competition
+  MEDIUM = 35, // 35-60: Competitive bidding 2-4
+  STRONG = 60, // 60-80: Aggressive bidding 3-5
+  VERY_STRONG = 80, // 80+: Bid 4-6, consider shoot the moon
+}

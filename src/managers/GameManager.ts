@@ -419,8 +419,9 @@ export class GameManager extends EventEmitter {
     if (this.gameState.currentHand.currentTrick && this.gameState.currentHand.currentTrick.cards.length > 0) {
       const leadSuit = this.gameState.currentHand.currentTrick.leadSuit;
       const trumpSuit = this.gameState.currentHand.trumpSuit;
+      const leadCard = this.gameState.currentHand.currentTrick.cards[0]?.card;
 
-      if (!card.canFollow(leadSuit, player.hand, trumpSuit)) {
+      if (!card.canFollow(leadSuit, player.hand, trumpSuit, leadCard)) {
         this.emit("invalidPlay", {
           reason: "Must follow lead suit when possible",
           playerId: player.id,

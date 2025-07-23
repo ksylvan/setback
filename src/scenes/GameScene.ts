@@ -1,11 +1,12 @@
 import { Scene } from "phaser";
+import { BiddingAI } from "@/ai/BiddingAI";
 import { CardSprite } from "@/components/CardSprite";
 import { CardTooltip } from "@/components/CardTooltip";
 import { TurnIndicator } from "@/components/TurnIndicator";
 import { CardThemeManager } from "@/managers/CardThemeManager";
 import { GameManager } from "@/managers/GameManager";
 import { KeyboardManager } from "@/managers/KeyboardManager";
-import type { Bid, Player, GameConfig as SetbackGameConfig } from "@/types/game";
+import { AIPersonality, type Bid, type Player, type GameConfig as SetbackGameConfig } from "@/types/game";
 import type { CardSelectionState } from "@/types/interaction";
 import {
   getCardDisplayState,
@@ -28,6 +29,7 @@ export class GameScene extends Scene {
   private themeManager!: CardThemeManager;
   private keyboardManager!: KeyboardManager;
   private turnIndicator!: TurnIndicator;
+  private biddingAI!: BiddingAI;
   private playerTexts: { [playerId: string]: Phaser.GameObjects.Text } = {};
   private playerLeaderBorders: {
     [playerId: string]: Phaser.GameObjects.Graphics;
@@ -77,6 +79,7 @@ export class GameScene extends Scene {
     this.gameManager = new GameManager(gameConfig);
     this.themeManager = new CardThemeManager();
     this.keyboardManager = new KeyboardManager(this);
+    this.biddingAI = new BiddingAI();
     this.setupGameEvents();
     this.setupInteractionEvents();
   }
@@ -1071,20 +1074,26 @@ export class GameScene extends Scene {
 
     if (currentPlayer.isHuman) return;
 
-    // Simple AI bidding logic - random for now
-    const shouldBid = Math.random() > 0.5;
-    let bidAmount: number | null = null;
+    console.log(
+      `🎮 GameScene: Triggering AI bid for ${currentPlayer.name} (Player ${gameState.currentHand.currentPlayerIndex + 1})`
+    );
 
-    if (shouldBid) {
-      const currentBid = gameState.currentHand.currentBid;
-      const minBid = currentBid ? currentBid.amount + 1 : 2;
-      const maxBid = Math.min(6, minBid + 2);
+    // Advanced AI bidding using BiddingAI system
+    // Use different personalities for variety - could be configured per player
+    const personalities: AIPersonality[] = [
+      AIPersonality.BALANCED,
+      AIPersonality.CONSERVATIVE,
+      AIPersonality.AGGRESSIVE,
+      AIPersonality.ADAPTIVE,
+    ];
 
-      if (minBid <= maxBid) {
-        bidAmount = Math.floor(Math.random() * (maxBid - minBid + 1)) + minBid;
-      }
-    }
+    // Assign personality based on player index for consistent behavior
+    const personality = personalities[gameState.currentHand.currentPlayerIndex % personalities.length];
 
+    // Use the sophisticated BiddingAI to calculate the optimal bid
+    const bidAmount = this.biddingAI.calculateBid(currentPlayer.hand, gameState, personality);
+
+    console.log(`🎮 GameScene: Placing bid - ${bidAmount === null ? "PASS" : `BID ${bidAmount}`}`);
     this.gameManager.placeBid(currentPlayer.id, bidAmount);
   }
 
@@ -1569,7 +1578,8 @@ export class GameScene extends Scene {
     }
 
     // Smart AI card selection logic
-    const cardToPlay = this.selectBestAICard(currentPlayer, leadSuit, trumpSuit);
+    const leadCard = gameState.currentHand.currentTrick?.cards[0]?.card;
+    const cardToPlay = this.selectBestAICard(currentPlayer, leadSuit, trumpSuit, leadCard);
 
     console.log("🤖 AI will play:", cardToPlay.displayName);
 
@@ -1601,10 +1611,10 @@ export class GameScene extends Scene {
     }
   }
 
-  private selectBestAICard(player: any, leadSuit: any, trumpSuit: any): any {
+  private selectBestAICard(player: any, leadSuit: any, trumpSuit: any, leadCard?: any): any {
     // First priority: Follow suit if required
     if (leadSuit) {
-      const followCard = player.hand.find((card: any) => card.canFollow(leadSuit, player.hand, trumpSuit));
+      const followCard = player.hand.find((card: any) => card.canFollow(leadSuit, player.hand, trumpSuit, leadCard));
       if (followCard) {
         return followCard;
       }

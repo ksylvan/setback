@@ -431,7 +431,10 @@ describe("GameManager - Card Playing Mechanics (SB-001)", () => {
         const leadSuit = trick.leadSuit;
 
         // Find card that can follow the lead suit
-        return player.hand.find((card: any) => card.canFollow(leadSuit, player.hand, trumpSuit)) || player.hand[0];
+        const leadCard = trick.cards[0]?.card;
+        return (
+          player.hand.find((card: any) => card.canFollow(leadSuit, player.hand, trumpSuit, leadCard)) || player.hand[0]
+        );
       };
 
       // Play 4 cards in sequence
