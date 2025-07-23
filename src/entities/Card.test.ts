@@ -108,26 +108,148 @@ describe("Card", () => {
     it("should return true when card matches lead suit", () => {
       const card = new Card(Suit.HEARTS, Rank.KING);
       const hand = [card, new Card(Suit.SPADES, Rank.QUEEN)];
-      expect(card.canFollow(Suit.HEARTS, hand, Suit.SPADES)).toBe(true);
+      expect(card.canFollow(Suit.HEARTS, hand, Suit.SPADES, undefined)).toBe(true);
     });
 
     it("should return false when card does not match lead suit and player has lead suit", () => {
       const card = new Card(Suit.CLUBS, Rank.KING);
       const leadSuitCard = new Card(Suit.HEARTS, Rank.QUEEN);
       const hand = [card, leadSuitCard];
-      expect(card.canFollow(Suit.HEARTS, hand, Suit.SPADES)).toBe(false);
+      expect(card.canFollow(Suit.HEARTS, hand, Suit.SPADES, undefined)).toBe(false);
     });
 
     it("should return true when player has no cards of lead suit", () => {
       const card = new Card(Suit.CLUBS, Rank.KING);
       const hand = [card, new Card(Suit.SPADES, Rank.QUEEN)];
-      expect(card.canFollow(Suit.HEARTS, hand, Suit.DIAMONDS)).toBe(true);
+      expect(card.canFollow(Suit.HEARTS, hand, Suit.DIAMONDS, undefined)).toBe(true);
     });
 
     it("should return true for lead suit card when player has lead suit", () => {
       const card = new Card(Suit.HEARTS, Rank.KING);
       const hand = [card, new Card(Suit.HEARTS, Rank.QUEEN)];
-      expect(card.canFollow(Suit.HEARTS, hand, Suit.SPADES)).toBe(true);
+      expect(card.canFollow(Suit.HEARTS, hand, Suit.SPADES, undefined)).toBe(true);
+    });
+
+    describe("Off-jack trump leading rules", () => {
+      it("should allow off-jack when trump is led and no actual trump cards exist", () => {
+        const trumpSuit = Suit.HEARTS;
+        const offJack = new Card(Suit.DIAMONDS, Rank.JACK); // Off-jack (same color as hearts)
+        const hand = [
+          offJack,
+          new Card(Suit.CLUBS, Rank.KING), // Non-trump
+          new Card(Suit.SPADES, Rank.QUEEN), // Non-trump
+        ];
+
+        // Trump is being led, but player has no actual trump cards
+        expect(offJack.canFollow(trumpSuit, hand, trumpSuit, undefined)).toBe(true);
+      });
+
+      it("should prevent off-jack when trump is led and player has actual trump cards", () => {
+        const trumpSuit = Suit.HEARTS;
+        const offJack = new Card(Suit.DIAMONDS, Rank.JACK); // Off-jack (same color as hearts)
+        const hand = [
+          offJack,
+          new Card(Suit.HEARTS, Rank.KING), // Actual trump card
+          new Card(Suit.CLUBS, Rank.QUEEN), // Non-trump
+        ];
+
+        // Trump is being led, and player has actual trump cards
+        expect(offJack.canFollow(trumpSuit, hand, trumpSuit, undefined)).toBe(false);
+      });
+
+      it("should allow off-jack when trump is led and only joker exists (no actual trump)", () => {
+        const trumpSuit = Suit.HEARTS;
+        const offJack = new Card(Suit.DIAMONDS, Rank.JACK); // Off-jack
+        const joker = new Card(null, Rank.JOKER);
+        const hand = [
+          offJack,
+          joker, // Joker is trump but not "actual trump suit"
+          new Card(Suit.CLUBS, Rank.QUEEN), // Non-trump
+        ];
+
+        // Trump is being led, but no actual trump suit cards (joker doesn't count)
+        expect(offJack.canFollow(trumpSuit, hand, trumpSuit, undefined)).toBe(true);
+      });
+
+      it("should prevent off-jack when trump is led and multiple actual trump cards exist", () => {
+        const trumpSuit = Suit.SPADES;
+        const offJack = new Card(Suit.CLUBS, Rank.JACK); // Off-jack (same color as spades)
+        const hand = [
+          offJack,
+          new Card(Suit.SPADES, Rank.ACE), // Actual trump
+          new Card(Suit.SPADES, Rank.KING), // Actual trump
+          new Card(Suit.HEARTS, Rank.QUEEN), // Non-trump
+        ];
+
+        // Trump is being led, and player has multiple actual trump cards
+        expect(offJack.canFollow(trumpSuit, hand, trumpSuit, undefined)).toBe(false);
+      });
+
+      it("should allow off-jack when non-trump suit is led (normal following rules)", () => {
+        const trumpSuit = Suit.HEARTS;
+        const offJack = new Card(Suit.DIAMONDS, Rank.JACK); // Off-jack
+        const hand = [
+          offJack,
+          new Card(Suit.HEARTS, Rank.KING), // Actual trump
+          new Card(Suit.CLUBS, Rank.QUEEN), // Non-trump
+        ];
+
+        // Non-trump suit is being led - off-jack can always be played as trump
+        expect(offJack.canFollow(Suit.CLUBS, hand, trumpSuit, undefined)).toBe(true);
+      });
+
+      it("should handle edge case with jack of trump suit vs off-jack", () => {
+        const trumpSuit = Suit.HEARTS;
+        const jackOfTrump = new Card(Suit.HEARTS, Rank.JACK); // Jack of trump (not off-jack)
+        const hand = [
+          jackOfTrump,
+          new Card(Suit.HEARTS, Rank.KING), // Another trump
+          new Card(Suit.CLUBS, Rank.QUEEN), // Non-trump
+        ];
+
+        // Jack of trump should always be playable when trump is led
+        expect(jackOfTrump.canFollow(trumpSuit, hand, trumpSuit, undefined)).toBe(true);
+      });
+
+      it("should verify off-jack identification with all color combinations", () => {
+        // Hearts trump - Diamonds is off-jack
+        const heartsOffJack = new Card(Suit.DIAMONDS, Rank.JACK);
+        expect(heartsOffJack.isOffJack(Suit.HEARTS)).toBe(true);
+
+        // Diamonds trump - Hearts is off-jack
+        const diamondsOffJack = new Card(Suit.HEARTS, Rank.JACK);
+        expect(diamondsOffJack.isOffJack(Suit.DIAMONDS)).toBe(true);
+
+        // Spades trump - Clubs is off-jack
+        const spadesOffJack = new Card(Suit.CLUBS, Rank.JACK);
+        expect(spadesOffJack.isOffJack(Suit.SPADES)).toBe(true);
+
+        // Clubs trump - Spades is off-jack
+        const clubsOffJack = new Card(Suit.SPADES, Rank.JACK);
+        expect(clubsOffJack.isOffJack(Suit.CLUBS)).toBe(true);
+      });
+
+      it("should prevent off-jack when any trump card (off-jack or jack of trump) leads the trick", () => {
+        const trumpSuit = Suit.HEARTS;
+        const offJack = new Card(Suit.DIAMONDS, Rank.JACK); // Off-jack (red)
+        const hand = [
+          offJack,
+          new Card(Suit.CLUBS, Rank.KING), // Non-trump
+          new Card(Suit.SPADES, Rank.QUEEN), // Non-trump
+        ];
+
+        // Case 1: Jack of Trump leads the trick
+        const jackOfTrumpLead = new Card(Suit.HEARTS, Rank.JACK);
+        expect(offJack.canFollow(Suit.HEARTS, hand, trumpSuit, jackOfTrumpLead)).toBe(false);
+
+        // Case 2: Joker leads the trick
+        const jokerLead = new Card(null, Rank.JOKER);
+        expect(offJack.canFollow(Suit.HEARTS, hand, trumpSuit, jokerLead)).toBe(false);
+
+        // Case 3: Regular trump card leads the trick
+        const regularTrumpLead = new Card(Suit.HEARTS, Rank.ACE);
+        expect(offJack.canFollow(Suit.HEARTS, hand, trumpSuit, regularTrumpLead)).toBe(false);
+      });
     });
   });
 

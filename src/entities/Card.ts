@@ -190,10 +190,45 @@ export class Card implements ICard {
   /**
    * Check if this card can follow the lead suit
    */
-  canFollow(leadSuit: Suit, hand: Card[], trumpSuit: Suit | null): boolean {
+  canFollow(leadSuit: Suit, hand: Card[], trumpSuit: Suit | null, leadCard?: Card): boolean {
     // Joker can always be played (it's always trump)
     if (this.isJoker) return true;
 
+    // Check if trump suit was led (traditional rule)
+    const trumpSuitWasLed = trumpSuit !== null && leadSuit === trumpSuit;
+
+    // Check if a trump card was led (new rule)
+    const trumpCardWasLed =
+      trumpSuit !== null && leadCard && (leadCard.isTrump(trumpSuit) || leadCard.isOffJack(trumpSuit));
+
+    if (trumpSuitWasLed || trumpCardWasLed) {
+      // When trump is led, you must play trump if you have it
+      if (this.isOffJack(trumpSuit)) {
+        // If a trump card was led (not just trump suit), Off-Jack cannot be played
+        if (trumpCardWasLed) {
+          return false;
+        }
+
+        // If trump suit was led, Off-Jack can only be played if no actual trump cards exist
+        if (trumpSuitWasLed) {
+          const hasActualTrump = hand.some(
+            (card) => card.suit === trumpSuit && !card.isJoker && !card.isOffJack(trumpSuit)
+          );
+          return !hasActualTrump; // Off-jack only playable if no actual trump cards
+        }
+      }
+
+      // If this card is actual trump (including joker), it can be played
+      if (this.isTrump(trumpSuit)) return true;
+
+      // Check if player has any trump cards at all (including off-jack and joker)
+      const hasTrumpCards = hand.some((card) => card.isTrump(trumpSuit) || card.isOffJack(trumpSuit));
+
+      // If player has trump cards, non-trump can't be played when trump is led
+      return !hasTrumpCards;
+    }
+
+    // Regular suit-following logic when trump is not led
     // If this card matches the lead suit, it can always follow
     if (this.suit === leadSuit) return true;
 
@@ -271,5 +306,12 @@ export class Card implements ICard {
       default:
         return "?";
     }
+  }
+
+  public toString(): string {
+    if (this.isJoker) {
+      return "Joker";
+    }
+    return `${this.getRankShort()}${this.getSuitShort()}`;
   }
 }

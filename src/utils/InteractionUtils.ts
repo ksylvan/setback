@@ -71,7 +71,8 @@ export function validateCardPlay(card: Card, player: Player, gameState: GameStat
 
   // Follow suit validation
   if (leadSuit) {
-    const canFollow = card.canFollow(leadSuit, player.hand, trumpSuit);
+    const leadCard = currentTrick?.cards[0]?.card;
+    const canFollow = card.canFollow(leadSuit, player.hand, trumpSuit, leadCard);
     if (!canFollow) {
       // Check if player has cards of the lead suit
       const hasLeadSuit = player.hand.some((c) => c.suit === leadSuit && !c.isJoker && !c.isOffJack(trumpSuit));
