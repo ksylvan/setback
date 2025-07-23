@@ -1,6 +1,13 @@
 import type { Card } from "@/entities/Card";
 import { Rank, Suit } from "@/types/game";
 import type { CardDisplayState } from "@/types/interaction";
+import { isMobile, isTablet } from "@/utils/ResponsiveUtils";
+import {
+  type DoubleTapData,
+  type LongPressData,
+  type SwipeData,
+  TouchGestureManager,
+} from "@/utils/TouchGestureManager";
 import { CardTooltip } from "./CardTooltip";
 
 /**
@@ -49,6 +56,10 @@ export class CardSprite extends Phaser.GameObjects.Container {
   private tooltip?: CardTooltip;
   private tooltipTimer?: Phaser.Time.TimerEvent;
 
+  // Touch gesture management
+  private touchGestureManager?: TouchGestureManager;
+  private mobileOptimized: boolean = false;
+
   // Animation properties
   private originalScale: number = 1;
   private hoverScale: number = 1.05;
@@ -74,6 +85,12 @@ export class CardSprite extends Phaser.GameObjects.Container {
     this.setupInteractivity();
     this.setupAccessibility();
     this.updateDisplay();
+
+    // Enable mobile optimizations on touch devices
+    this.mobileOptimized = isMobile() || isTablet();
+    if (this.mobileOptimized) {
+      this.setupMobileTouchGestures();
+    }
 
     scene.add.existing(this);
   }
@@ -155,37 +172,329 @@ export class CardSprite extends Phaser.GameObjects.Container {
     this.setSize(this.theme.cardWidth, this.theme.cardHeight);
     this.setInteractive();
 
-    // Hover effects with tooltip
-    this.on("pointerover", (pointer: Phaser.Input.Pointer) => this.onHover(true, pointer));
-    this.on("pointerout", () => this.onHover(false));
+    // Desktop interaction (mouse-based)
+    if (!this.mobileOptimized) {
+      // Hover effects with tooltip
+      this.on("pointerover", (pointer: Phaser.Input.Pointer) => this.onHover(true, pointer));
+      this.on("pointerout", () => this.onHover(false));
 
-    // Click/tap handling with enhanced feedback
-    this.on("pointerdown", () => this.onSelect());
+      // Click handling for desktop
+      this.on("pointerdown", () => this.onSelect());
 
-    // Long press detection for mobile
-    let longPressTimer: Phaser.Time.TimerEvent;
-    this.on("pointerdown", () => {
-      longPressTimer = this.scene.time.delayedCall(500, () => {
-        this.onLongPress();
+      // Add cursor change on hover
+      this.on("pointerover", () => {
+        if (this.isSelectable) {
+          this.scene.input.setDefaultCursor("pointer");
+        }
       });
+
+      this.on("pointerout", () => {
+        this.scene.input.setDefaultCursor("default");
+      });
+    } else {
+      // Basic tap handling for mobile (enhanced gestures handled separately)
+      this.on("pointerdown", () => {
+        // Note: Enhanced touch gestures are handled by TouchGestureManager
+      });
+    }
+  }
+
+  /**
+   * Setup mobile touch gesture handling
+   */
+  private setupMobileTouchGestures(): void {
+    // Initialize touch gesture manager with card-optimized settings
+    this.touchGestureManager = new TouchGestureManager(this.scene, this, {
+      // Swipe gestures for quick actions
+      swipeMinDistance: 40,
+      swipeMaxTime: 250,
+      swipeMinVelocity: 0.15,
+
+      // Double-tap for confirmation
+      doubleTapMaxDelay: 400,
+      doubleTapMaxDistance: 25,
+
+      // Long press for context info
+      longPressDelay: 700,
+      longPressMaxMovement: 15,
+
+      // Enable pressure sensitivity if available
+      pressureSensitive: TouchGestureManager.supportsPressure(),
+      minimumPressure: 0.3,
     });
 
-    this.on("pointerup", () => {
-      if (longPressTimer) {
-        longPressTimer.remove();
-      }
+    // Handle touch gestures
+    this.touchGestureManager.on("tap", this.onMobileTap, this);
+    this.touchGestureManager.on("doubletap", this.onMobileDoubleTap, this);
+    this.touchGestureManager.on("longpress", this.onMobileLongPress, this);
+    this.touchGestureManager.on("swipeup", this.onMobileSwipeUp, this);
+    this.touchGestureManager.on("swipedown", this.onMobileSwipeDown, this);
+    this.touchGestureManager.on("swipeleft", this.onMobileSwipeLeft, this);
+    this.touchGestureManager.on("swiperight", this.onMobileSwipeRight, this);
+  }
+
+  /**
+   * Handle mobile tap gesture
+   */
+  private onMobileTap(): void {
+    if (!this.isSelectable) return;
+
+    // Show brief selection feedback
+    this.showMobileTapFeedback();
+
+    // Emit selection event
+    this.onSelect();
+  }
+
+  /**
+   * Handle mobile double-tap gesture (confirm action)
+   */
+  private onMobileDoubleTap(_data: DoubleTapData): void {
+    if (!this.isSelectable) return;
+
+    // Double-tap always confirms if card is selected
+    if (this.isSelected) {
+      this.emit("cardConfirmed", {
+        card: this.card,
+        action: "confirm",
+        playable: this.displayState.playable,
+        sprite: this,
+        gestureType: "doubletap",
+      });
+    } else {
+      // Select and immediately confirm
+      this.isSelected = true;
+      this.displayState.selected = true;
+      this.updateVisualState();
+
+      this.emit("cardConfirmed", {
+        card: this.card,
+        action: "confirm",
+        playable: this.displayState.playable,
+        sprite: this,
+        gestureType: "doubletap",
+      });
+    }
+
+    // Show double-tap feedback
+    this.showMobileDoubleTapFeedback();
+  }
+
+  /**
+   * Handle mobile long press gesture (show context info)
+   */
+  private onMobileLongPress(data: LongPressData): void {
+    if (!this.isSelectable) return;
+
+    // Show tooltip with enhanced positioning for mobile
+    this.showTooltip(data.x, data.y, true);
+
+    // Provide haptic feedback if available
+    this.provideMobileHapticFeedback("light");
+
+    // Emit long press event with pressure data
+    this.emit("cardLongPress", {
+      card: this.card,
+      playable: this.displayState.playable,
+      reason: this.displayState.reason,
+      sprite: this,
+      pressure: data.pressure,
+      gestureType: "longpress",
+    });
+  }
+
+  /**
+   * Handle swipe up gesture (quick play if selected)
+   */
+  private onMobileSwipeUp(data: SwipeData): void {
+    if (!this.isSelectable || !this.isSelected) return;
+
+    // Swipe up to quickly confirm selected card
+    this.emit("cardConfirmed", {
+      card: this.card,
+      action: "confirm",
+      playable: this.displayState.playable,
+      sprite: this,
+      gestureType: "swipeup",
+      velocity: data.velocity,
     });
 
-    // Add cursor change on hover
-    this.on("pointerover", () => {
-      if (this.isSelectable) {
-        this.scene.input.setDefaultCursor("pointer");
-      }
+    this.showMobileSwipeFeedback("up");
+  }
+
+  /**
+   * Handle swipe down gesture (cancel selection)
+   */
+  private onMobileSwipeDown(data: SwipeData): void {
+    if (!this.isSelectable || !this.isSelected) return;
+
+    // Swipe down to cancel selection
+    this.isSelected = false;
+    this.displayState.selected = false;
+    this.updateVisualState();
+
+    this.emit("cardCancelled", {
+      card: this.card,
+      action: "cancel",
+      sprite: this,
+      gestureType: "swipedown",
+      velocity: data.velocity,
     });
 
-    this.on("pointerout", () => {
-      this.scene.input.setDefaultCursor("default");
+    this.showMobileSwipeFeedback("down");
+  }
+
+  /**
+   * Handle swipe left gesture (additional context action)
+   */
+  private onMobileSwipeLeft(data: SwipeData): void {
+    if (!this.isSelectable) return;
+
+    // Show card details or alternate action
+    this.emit("cardSwipeLeft", {
+      card: this.card,
+      sprite: this,
+      velocity: data.velocity,
     });
+
+    this.showMobileSwipeFeedback("left");
+  }
+
+  /**
+   * Handle swipe right gesture (additional context action)
+   */
+  private onMobileSwipeRight(data: SwipeData): void {
+    if (!this.isSelectable) return;
+
+    // Show card details or alternate action
+    this.emit("cardSwipeRight", {
+      card: this.card,
+      sprite: this,
+      velocity: data.velocity,
+    });
+
+    this.showMobileSwipeFeedback("right");
+  }
+
+  /**
+   * Show visual feedback for mobile tap
+   */
+  private showMobileTapFeedback(): void {
+    if (!this.scene || !this.scene.tweens) return;
+
+    // Brief scale pulse
+    this.scene.tweens.add({
+      targets: this,
+      scaleX: this.originalScale * 0.95,
+      scaleY: this.originalScale * 0.95,
+      duration: 80,
+      ease: "Power2.easeOut",
+      yoyo: true,
+    });
+
+    // Brief highlight flash
+    this.scene.tweens.add({
+      targets: this.highlight,
+      alpha: 0.6,
+      duration: 100,
+      ease: "Power2.easeOut",
+      yoyo: true,
+    });
+  }
+
+  /**
+   * Show visual feedback for mobile double-tap
+   */
+  private showMobileDoubleTapFeedback(): void {
+    if (!this.scene || !this.scene.tweens) return;
+
+    // More pronounced scale effect
+    this.scene.tweens.add({
+      targets: this,
+      scaleX: this.selectedScale * 1.1,
+      scaleY: this.selectedScale * 1.1,
+      duration: 150,
+      ease: "Back.easeOut",
+      yoyo: true,
+    });
+
+    // Golden flash for confirmation
+    const flash = this.scene.add.rectangle(0, 0, this.theme.cardWidth + 20, this.theme.cardHeight + 20, 0xffd700, 0.8);
+    this.add(flash);
+
+    this.scene.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scaleX: 1.2,
+      scaleY: 1.2,
+      duration: 300,
+      ease: "Power2.easeOut",
+      onComplete: () => {
+        flash.destroy();
+      },
+    });
+  }
+
+  /**
+   * Show visual feedback for swipe gestures
+   */
+  private showMobileSwipeFeedback(direction: "up" | "down" | "left" | "right"): void {
+    if (!this.scene || !this.scene.tweens) return;
+
+    // Direction-based color coding
+    const colors = {
+      up: 0x4caf50, // Green (confirm)
+      down: 0xf44336, // Red (cancel)
+      left: 0x2196f3, // Blue (info)
+      right: 0xff9800, // Orange (alternate)
+    };
+
+    const arrow = this.scene.add.text(0, 0, this.getSwipeArrow(direction), {
+      fontSize: "32px",
+      color: `#${colors[direction].toString(16).padStart(6, "0")}`,
+    });
+    arrow.setOrigin(0.5);
+    this.add(arrow);
+
+    // Animate arrow
+    this.scene.tweens.add({
+      targets: arrow,
+      alpha: 0,
+      y: direction === "up" ? -30 : direction === "down" ? 30 : 0,
+      x: direction === "left" ? -30 : direction === "right" ? 30 : 0,
+      duration: 400,
+      ease: "Power2.easeOut",
+      onComplete: () => {
+        arrow.destroy();
+      },
+    });
+  }
+
+  /**
+   * Get appropriate arrow emoji for swipe direction
+   */
+  private getSwipeArrow(direction: string): string {
+    const arrows = {
+      up: "↑",
+      down: "↓",
+      left: "←",
+      right: "→",
+    };
+    return arrows[direction as keyof typeof arrows] || "•";
+  }
+
+  /**
+   * Provide haptic feedback on supported devices
+   */
+  private provideMobileHapticFeedback(type: "light" | "medium" | "heavy" = "light"): void {
+    if ("vibrate" in navigator) {
+      const patterns = {
+        light: [50],
+        medium: [100],
+        heavy: [200],
+      };
+      navigator.vibrate(patterns[type]);
+    }
   }
 
   /**
@@ -476,7 +785,7 @@ export class CardSprite extends Phaser.GameObjects.Container {
   /**
    * Show tooltip at specified position
    */
-  public showTooltip(x: number, y: number): void {
+  public showTooltip(x: number, y: number, isMobileContext = false): void {
     // Safety check: ensure scene is available before creating tooltip
     if (!this.scene) {
       console.warn("CardSprite: No scene available for tooltip");
@@ -497,6 +806,7 @@ export class CardSprite extends Phaser.GameObjects.Container {
       y,
       tooltip: this.tooltip,
       sprite: this,
+      isMobileContext,
     });
   }
 
@@ -508,21 +818,6 @@ export class CardSprite extends Phaser.GameObjects.Container {
       this.tooltip.hide();
       this.tooltip = undefined;
     }
-  }
-
-  /**
-   * Handle long press for mobile touch
-   */
-  private onLongPress(): void {
-    if (!this.isSelectable) return;
-
-    // Show context info on long press
-    this.emit("cardLongPress", {
-      card: this.card,
-      playable: this.displayState.playable,
-      reason: this.displayState.reason,
-      sprite: this,
-    });
   }
 
   /**
@@ -654,5 +949,28 @@ export class CardSprite extends Phaser.GameObjects.Container {
         onComplete: () => resolve(),
       });
     });
+  }
+
+  /**
+   * Clean up resources when destroying the card sprite
+   */
+  public destroy(): void {
+    // Clean up touch gesture manager
+    if (this.touchGestureManager) {
+      this.touchGestureManager.destroy();
+      this.touchGestureManager = undefined;
+    }
+
+    // Clean up tooltip
+    this.hideTooltip();
+
+    // Clean up timers
+    if (this.tooltipTimer) {
+      this.tooltipTimer.remove();
+      this.tooltipTimer = undefined;
+    }
+
+    // Call parent destroy
+    super.destroy();
   }
 }

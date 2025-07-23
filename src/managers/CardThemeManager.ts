@@ -12,16 +12,46 @@ export class CardThemeManager {
   }
 
   /**
+   * Get responsive card dimensions based on screen size
+   */
+  private getResponsiveCardSize(baseWidth: number, baseHeight: number) {
+    const screenWidth = window.innerWidth;
+    const isTablet = screenWidth >= 768 && screenWidth <= 1366;
+    const isMobile = screenWidth < 768;
+
+    if (isMobile) {
+      // Mobile: Scale up cards significantly for better visibility
+      return {
+        width: Math.floor(baseWidth * 1.8),
+        height: Math.floor(baseHeight * 1.8),
+      };
+    } else if (isTablet) {
+      // Tablet (iPad Pro): Scale up cards significantly
+      return {
+        width: Math.floor(baseWidth * 1.6),
+        height: Math.floor(baseHeight * 1.6),
+      };
+    } else {
+      // Desktop: Use base size
+      return {
+        width: baseWidth,
+        height: baseHeight,
+      };
+    }
+  }
+
+  /**
    * Initialize the built-in card themes
    */
   private initializeDefaultThemes(): void {
     // Classic theme - traditional playing card look
+    const classicSize = this.getResponsiveCardSize(140, 190);
     this.addTheme({
       id: "classic",
       name: "Classic",
       cardBack: "cardBack_classic",
-      cardWidth: 140,
-      cardHeight: 190,
+      cardWidth: classicSize.width,
+      cardHeight: classicSize.height,
       suits: {
         hearts: "♥",
         diamonds: "♦",
@@ -39,12 +69,13 @@ export class CardThemeManager {
     });
 
     // Modern theme - clean, minimal design with larger cards
+    const modernSize = this.getResponsiveCardSize(150, 200);
     this.addTheme({
       id: "modern",
       name: "Modern",
       cardBack: "cardBack_modern",
-      cardWidth: 150,
-      cardHeight: 200,
+      cardWidth: modernSize.width,
+      cardHeight: modernSize.height,
       suits: {
         hearts: "♥",
         diamonds: "♦",
@@ -62,12 +93,13 @@ export class CardThemeManager {
     });
 
     // Neon theme - vibrant, glowing colors with smaller cards
+    const neonSize = this.getResponsiveCardSize(130, 180);
     this.addTheme({
       id: "neon",
       name: "Neon",
       cardBack: "cardBack_neon",
-      cardWidth: 130,
-      cardHeight: 180,
+      cardWidth: neonSize.width,
+      cardHeight: neonSize.height,
       suits: {
         hearts: "♥",
         diamonds: "♦",
@@ -85,12 +117,13 @@ export class CardThemeManager {
     });
 
     // Vintage theme - old-world charm with classic proportions
+    const vintageSize = this.getResponsiveCardSize(145, 195);
     this.addTheme({
       id: "vintage",
       name: "Vintage",
       cardBack: "cardBack_vintage",
-      cardWidth: 145,
-      cardHeight: 195,
+      cardWidth: vintageSize.width,
+      cardHeight: vintageSize.height,
       suits: {
         hearts: "♥",
         diamonds: "♦",
@@ -108,12 +141,13 @@ export class CardThemeManager {
     });
 
     // High contrast theme - accessibility focused
+    const contrastSize = this.getResponsiveCardSize(140, 190);
     this.addTheme({
       id: "high_contrast",
       name: "High Contrast",
       cardBack: "cardBack_contrast",
-      cardWidth: 140,
-      cardHeight: 190,
+      cardWidth: contrastSize.width,
+      cardHeight: contrastSize.height,
       suits: {
         hearts: "♥",
         diamonds: "♦",
@@ -326,7 +360,11 @@ export class CardThemeManager {
   /**
    * Import theme from JSON string
    */
-  public importTheme(jsonString: string): { success: boolean; errors: string[]; theme?: CardTheme } {
+  public importTheme(jsonString: string): {
+    success: boolean;
+    errors: string[];
+    theme?: CardTheme;
+  } {
     try {
       const theme = JSON.parse(jsonString) as Partial<CardTheme>;
       const errors = this.validateTheme(theme);

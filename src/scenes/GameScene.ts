@@ -14,6 +14,7 @@ import {
   requiresConfirmation,
   validateCardPlay,
 } from "@/utils/InteractionUtils";
+import { getResponsiveFontSizePx, getResponsiveSpacing } from "@/utils/ResponsiveUtils";
 
 interface SceneData {
   players: Array<{
@@ -134,7 +135,7 @@ export class GameScene extends Scene {
     // Back to menu button
     const menuButton = this.add
       .text(50, 50, "MENU", {
-        fontSize: "16px",
+        fontSize: getResponsiveFontSizePx(16),
         color: "#ffffff",
         backgroundColor: "#666666",
         padding: { x: 15, y: 8 },
@@ -176,13 +177,16 @@ export class GameScene extends Scene {
     // Create turn indicator
     this.turnIndicator = new TurnIndicator(this, width / 2, 200);
 
-    // Create confirm/cancel buttons (initially hidden)
+    // Create confirm/cancel buttons (initially hidden) - enhanced for mobile touch
+    const buttonSpacing = getResponsiveSpacing(80);
+    const buttonY = height - getResponsiveSpacing(150);
+
     this.confirmButton = this.add
-      .text(width / 2 - 80, height - 150, "CONFIRM PLAY", {
-        fontSize: "16px",
+      .text(width / 2 - buttonSpacing, buttonY, "CONFIRM PLAY", {
+        fontSize: getResponsiveFontSizePx(16),
         color: "#ffffff",
         backgroundColor: "#4CAF50",
-        padding: { x: 20, y: 10 },
+        padding: { x: getResponsiveSpacing(20), y: getResponsiveSpacing(10) },
       })
       .setOrigin(0.5)
       .setVisible(false)
@@ -190,11 +194,11 @@ export class GameScene extends Scene {
       .on("pointerdown", () => this.confirmCardPlay());
 
     this.cancelButton = this.add
-      .text(width / 2 + 80, height - 150, "CANCEL", {
-        fontSize: "16px",
+      .text(width / 2 + buttonSpacing, buttonY, "CANCEL", {
+        fontSize: getResponsiveFontSizePx(16),
         color: "#ffffff",
         backgroundColor: "#f44336",
-        padding: { x: 20, y: 10 },
+        padding: { x: getResponsiveSpacing(20), y: getResponsiveSpacing(10) },
       })
       .setOrigin(0.5)
       .setVisible(false)
@@ -235,7 +239,7 @@ export class GameScene extends Scene {
       const dealerIndicator = player.isDealer ? " 🃏" : "";
       const playerText = this.add
         .text(x, y, `${player.name}${dealerIndicator}`, {
-          fontSize: "18px",
+          fontSize: getResponsiveFontSizePx(18),
           color: "#ffffff",
           backgroundColor: player.isDealer ? "#6a4c93" : "#444444",
           padding: { x: 15, y: 8 },
@@ -972,12 +976,12 @@ export class GameScene extends Scene {
 
     // Add instruction text
     const instructionText = this.add
-      .text(width / 2, buttonY - 50, "PLACE YOUR BID:", {
-        fontSize: "24px",
+      .text(width / 2, buttonY - getResponsiveSpacing(50), "PLACE YOUR BID:", {
+        fontSize: getResponsiveFontSizePx(24),
         color: "#FFD700",
         fontStyle: "bold",
         backgroundColor: "#000000",
-        padding: { x: 20, y: 12 },
+        padding: { x: getResponsiveSpacing(20), y: getResponsiveSpacing(12) },
       })
       .setOrigin(0.5);
 
@@ -985,13 +989,14 @@ export class GameScene extends Scene {
 
     buttons.push(instructionText); // Add to cleanup list
 
-    // Pass button
+    // Pass button - enhanced for mobile touch
+    const passButtonSpacing = getResponsiveSpacing(180);
     const passButton = this.add
-      .text(width / 2 - 180, buttonY, "PASS", {
-        fontSize: "22px",
+      .text(width / 2 - passButtonSpacing, buttonY, "PASS", {
+        fontSize: getResponsiveFontSizePx(22),
         color: "#ffffff",
         backgroundColor: "#CC4444",
-        padding: { x: 25, y: 15 },
+        padding: { x: getResponsiveSpacing(25), y: getResponsiveSpacing(15) },
       })
       .setOrigin(0.5);
 
@@ -1011,14 +1016,21 @@ export class GameScene extends Scene {
     console.log("🎯 Current bid amount:", currentBid?.amount || "none", "Min bid:", minBid);
 
     if (minBid <= 6) {
+      // Enhanced spacing for mobile touch targets
+      const buttonSpacing = getResponsiveSpacing(50);
+      const startOffset = getResponsiveSpacing(80);
+
       for (let bid = minBid; bid <= 6; bid++) {
-        const x = width / 2 - 80 + (bid - 2) * 50;
+        const x = width / 2 - startOffset + (bid - 2) * buttonSpacing;
         const bidButton = this.add
           .text(x, buttonY, bid.toString(), {
-            fontSize: "22px",
+            fontSize: getResponsiveFontSizePx(22),
             color: "#ffffff",
             backgroundColor: "#4a7c59",
-            padding: { x: 20, y: 15 },
+            padding: {
+              x: getResponsiveSpacing(20),
+              y: getResponsiveSpacing(15),
+            },
           })
           .setOrigin(0.5);
 
@@ -1034,7 +1046,7 @@ export class GameScene extends Scene {
       // No valid bids available, show message
       const noBidsText = this.add
         .text(width / 2, buttonY, "Only PASS available", {
-          fontSize: "18px",
+          fontSize: getResponsiveFontSizePx(18),
           color: "#CCCCCC",
           backgroundColor: "#444444",
           padding: { x: 15, y: 10 },
@@ -1083,7 +1095,7 @@ export class GameScene extends Scene {
     // Trump suit display (center top)
     this.trumpDisplay = this.add
       .text(width / 2, 100, "Trump: Not Set", {
-        fontSize: "16px",
+        fontSize: getResponsiveFontSizePx(16),
         color: "#FFD700",
         backgroundColor: "#4a7c59",
         padding: { x: 15, y: 8 },
@@ -1094,7 +1106,7 @@ export class GameScene extends Scene {
     // Trick information (center, below trump)
     this.trickInfo = this.add
       .text(width / 2, 130, "Lead: None | Cards: 0/4", {
-        fontSize: "14px",
+        fontSize: getResponsiveFontSizePx(14),
         color: "#ffffff",
         backgroundColor: "#333333",
         padding: { x: 12, y: 6 },
@@ -1105,7 +1117,7 @@ export class GameScene extends Scene {
     // Persistent current bid display (top right corner)
     this.persistentBidDisplay = this.add
       .text(width - 120, 50, "Current Bid: None", {
-        fontSize: "16px",
+        fontSize: getResponsiveFontSizePx(16),
         color: "#FFD700",
         backgroundColor: "#4a4a4a",
         padding: { x: 12, y: 8 },
@@ -1116,7 +1128,7 @@ export class GameScene extends Scene {
     // Last trick winner display (below current bid display)
     this.lastTrickWinnerDisplay = this.add
       .text(width - 120, 80, "Last Trick: None", {
-        fontSize: "14px",
+        fontSize: getResponsiveFontSizePx(14),
         color: "#FFD700",
         backgroundColor: "#2a5a3a",
         padding: { x: 12, y: 6 },
@@ -1141,7 +1153,7 @@ export class GameScene extends Scene {
     // Current high bid display
     this.currentBidDisplay = this.add
       .text(0, -80, "Current Bid: None", {
-        fontSize: "18px",
+        fontSize: getResponsiveFontSizePx(18),
         color: "#FFD700",
         backgroundColor: "#333333",
         padding: { x: 15, y: 8 },
@@ -1159,7 +1171,7 @@ export class GameScene extends Scene {
 
       const bidText = this.add
         .text(x, y, `${player.name}\nWaiting...`, {
-          fontSize: "14px",
+          fontSize: getResponsiveFontSizePx(14),
           color: "#ffffff",
           backgroundColor: "#555555",
           padding: { x: 10, y: 6 },
@@ -1193,7 +1205,7 @@ export class GameScene extends Scene {
     // Add trick label
     const trickLabel = this.add
       .text(0, -85, "Current Trick", {
-        fontSize: "16px",
+        fontSize: getResponsiveFontSizePx(16),
         color: "#ffffff",
         fontStyle: "bold",
       })
@@ -1825,7 +1837,7 @@ export class GameScene extends Scene {
 
     const scoreText = this.add
       .text(width / 2, height / 2 - 20, tricksText, {
-        fontSize: "18px",
+        fontSize: getResponsiveFontSizePx(18),
         color: "#ffffff",
         align: "center",
       })
@@ -1916,7 +1928,7 @@ export class GameScene extends Scene {
 
     const finalScoresText = this.add
       .text(width / 2, height / 2 - 20, `Final Scores:\n${scoresText}\n\nTarget: ${targetScore} points`, {
-        fontSize: "18px",
+        fontSize: getResponsiveFontSizePx(18),
         color: "#ffffff",
         align: "center",
       })

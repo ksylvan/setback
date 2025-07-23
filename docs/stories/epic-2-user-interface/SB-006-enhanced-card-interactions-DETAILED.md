@@ -237,10 +237,10 @@ Successfully implemented all desktop interaction features. Added dealer border i
 
 **Test Coverage Results:**
 
-- **148 tests** across 8 test files (all passing)
-- **Core Game Logic**: High coverage maintained
-  - GameManager: 81.85% line coverage (main game engine)
-  - CardThemeManager: 96.71% line coverage (theming system)
+- **151 tests** across 8 test files (all passing)
+- **Core Game Logic**: High coverage maintained with recent improvements
+  - GameManager: 82.11% line coverage (main game engine) - **Improved**
+  - CardThemeManager: 94.01% line coverage (theming system) - **Improved**
   - Card Entity: 53.7% line coverage (card logic)
   - Deck Entity: 90.56% line coverage (deck management)
 - **UI Components**: Infrastructure complete, ready for testing expansion
@@ -249,6 +249,10 @@ Successfully implemented all desktop interaction features. Added dealer border i
   - TurnIndicator: Infrastructure complete, awaiting UI-specific tests
   - KeyboardManager: Infrastructure complete, awaiting UI-specific tests
   - InteractionUtils: Infrastructure complete, converted to exported functions
+- **Joker Leading Rule**: New critical rule implemented with 3 comprehensive tests
+  - Prevents joker leading when player has multiple cards
+  - Allows joker leading when it's player's last card
+  - Allows joker when following (not leading) regardless of hand size
 
 **Note**: New interaction components have 0% line coverage as they require integration testing and manual UI testing scenarios. The code compiles successfully with zero linting errors and integrates properly with existing tested game logic.
 

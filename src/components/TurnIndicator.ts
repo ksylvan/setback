@@ -1,5 +1,6 @@
 import type { Player } from "@/types/game";
 import type { TurnIndicationState } from "@/types/interaction";
+import { getResponsiveFontSizePx } from "@/utils/ResponsiveUtils";
 
 /**
  * TurnIndicator - Enhanced turn display with visual effects
@@ -65,13 +66,13 @@ export class TurnIndicator extends Phaser.GameObjects.Container {
 
     // Action icon (indicates what type of action is expected)
     this.actionIcon = this.scene.add.text(-TurnIndicator.WIDTH / 2 + 20, -15, "🎯", {
-      fontSize: "24px",
+      fontSize: getResponsiveFontSizePx(24),
     });
     this.add(this.actionIcon);
 
     // Player name text
     this.playerNameText = this.scene.add.text(0, -15, "", {
-      fontSize: "18px",
+      fontSize: getResponsiveFontSizePx(18),
       fontStyle: "bold",
       color: "#FFD700",
       align: "center",
@@ -81,7 +82,7 @@ export class TurnIndicator extends Phaser.GameObjects.Container {
 
     // Timer text (top right)
     this.timerText = this.scene.add.text(TurnIndicator.WIDTH / 2 - 20, -15, "", {
-      fontSize: "14px",
+      fontSize: getResponsiveFontSizePx(14),
       color: "#FFA500",
       align: "right",
     });
@@ -90,7 +91,7 @@ export class TurnIndicator extends Phaser.GameObjects.Container {
 
     // Instruction text
     this.instructionText = this.scene.add.text(0, 10, "", {
-      fontSize: "14px",
+      fontSize: getResponsiveFontSizePx(14),
       color: "#ffffff",
       align: "center",
       wordWrap: { width: TurnIndicator.WIDTH - TurnIndicator.PADDING * 2 },

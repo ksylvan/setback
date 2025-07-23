@@ -5,8 +5,26 @@ import { MenuScene } from "@/scenes/MenuScene";
 
 // Calculate device pixel ratio for crisp rendering on high-DPI displays
 const devicePixelRatio = window.devicePixelRatio || 1;
-const baseWidth = 1200;
-const baseHeight = 800;
+
+// Responsive base dimensions based on screen size
+const getBaseDimensions = () => {
+  const screenWidth = window.innerWidth;
+  const isTablet = screenWidth >= 768 && screenWidth <= 1366;
+  const isMobile = screenWidth < 768;
+
+  if (isMobile) {
+    // Mobile: Use smaller base to make elements larger relative to screen
+    return { width: 800, height: 600 };
+  } else if (isTablet) {
+    // Tablet (iPad Pro): Balanced dimensions for better scaling
+    return { width: 1000, height: 700 };
+  } else {
+    // Desktop: Full dimensions
+    return { width: 1200, height: 800 };
+  }
+};
+
+const { width: baseWidth, height: baseHeight } = getBaseDimensions();
 
 export const GameConfig: Phaser.Types.Core.GameConfig = {
   type: WEBGL, // Use WebGL for better performance with high-resolution textures
@@ -19,8 +37,8 @@ export const GameConfig: Phaser.Types.Core.GameConfig = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     zoom: 1 / devicePixelRatio, // Scale back down to compensate for increased resolution
     min: {
-      width: 800 * devicePixelRatio,
-      height: 600 * devicePixelRatio,
+      width: 600 * devicePixelRatio, // Reduced minimum for smaller screens
+      height: 400 * devicePixelRatio,
     },
     max: {
       width: 1600 * devicePixelRatio,

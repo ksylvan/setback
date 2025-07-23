@@ -301,14 +301,15 @@ The project maintains high code quality through comprehensive testing:
 
 ### Current Test Coverage
 
-- **148 tests** across 8 test files (all passing)
+- **151 tests** across 8 test files (all passing)
 - **Core game logic** maintains high coverage:
-  - **GameManager**: 81.85% line coverage (main game engine)
-  - **CardThemeManager**: 96.71% line coverage (theming system)  
+  - **GameManager**: 82.11% line coverage (main game engine)
+  - **CardThemeManager**: 94.01% line coverage (theming system)
   - **Card Entity**: 53.7% line coverage (card logic)
   - **Deck Entity**: 90.56% line coverage (deck management)
 - **Epic 1 Complete**: All core gameplay scenarios comprehensively tested
 - **SB-006 Infrastructure**: UI interaction components complete, ready for integration testing
+- **Joker Leading Rule**: New validation implemented with comprehensive test coverage (3 additional tests)
 
 ### Testing Commands
 
@@ -429,8 +430,9 @@ git push origin feature/SB-001-card-playing
 ### Current State ✅
 
 - **Epic 1 Complete**: Full core gameplay implementation with 23 story points
+- **Joker Leading Rule**: Critical game rule implemented and tested (prevents leading with joker unless last card)
 - **SB-006 Enhanced Card Interactions**: 🔄 **IN PROGRESS** - Desktop complete, mobile touch gestures pending
-- **Testing Infrastructure**: 148 tests with comprehensive core game logic coverage
+- **Testing Infrastructure**: 151 tests with comprehensive core game logic coverage
 - **Game Logic**: Complete Setback rules with all 6 scoring categories
 - **Winner Declaration**: Automatic game completion with proper edge case handling
 - **Code Quality**: Zero linting errors, full TypeScript compliance, robust error handling
@@ -440,7 +442,7 @@ git push origin feature/SB-001-card-playing
 - **Complete SB-006**: Mobile touch gesture handling for card interactions
 - **Epic 2 Continuation**: Complete remaining UI stories (~16 points remaining)
   - SB-007: Game State Display (comprehensive UI improvements)
-  - SB-008: Card Animations (smooth visual effects) 
+  - SB-008: Card Animations (smooth visual effects)
   - SB-009: Responsive Mobile Layout (cross-device compatibility)
   - SB-010: Audio Feedback System (sound effects and cues)
 - **Epic 3**: Advanced AI intelligence and strategic play (27 points)
@@ -456,7 +458,7 @@ git push origin feature/SB-001-card-playing
 ---
 
 **Total Project Scope**: 71 story points across 15 stories
-**Current Progress**: ~28/71 story points completed (~39% complete) 
+**Current Progress**: ~28/71 story points completed (~39% complete)
 **Current Status**: Epic 1 complete, SB-006 (Epic 2) 🔄 **IN PROGRESS** - mobile touch gestures pending
 
 > Built with ❤️ using modern web technologies

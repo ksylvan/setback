@@ -1,4 +1,5 @@
 import type { Card } from "@/entities/Card";
+import { getResponsiveFontSizePx } from "@/utils/ResponsiveUtils";
 
 /**
  * CardTooltip - Efficient tooltip component with object pooling
@@ -106,18 +107,20 @@ export class CardTooltip extends Phaser.GameObjects.Container {
 
     // Card title text (e.g., "Ace of Hearts")
     this.titleText = this.scene.add.text(0, -CardTooltip.TOOLTIP_HEIGHT / 2 + 20, "", {
-      fontSize: "14px",
+      fontSize: getResponsiveFontSizePx(14),
       fontStyle: "bold",
       color: "#FFD700",
       align: "center",
-      wordWrap: { width: CardTooltip.TOOLTIP_WIDTH - CardTooltip.PADDING * 2 },
+      wordWrap: {
+        width: CardTooltip.TOOLTIP_WIDTH - CardTooltip.PADDING * 2,
+      },
     });
     this.titleText.setOrigin(0.5);
     this.add(this.titleText);
 
     // Playability status (e.g., "Playable" or "Cannot Play")
     this.statusText = this.scene.add.text(0, -10, "", {
-      fontSize: "12px",
+      fontSize: getResponsiveFontSizePx(12),
       fontStyle: "bold",
       color: "#ffffff",
       align: "center",
@@ -127,10 +130,12 @@ export class CardTooltip extends Phaser.GameObjects.Container {
 
     // Reason text (e.g., "Must follow Hearts suit")
     this.reasonText = this.scene.add.text(0, CardTooltip.TOOLTIP_HEIGHT / 2 - 20, "", {
-      fontSize: "11px",
+      fontSize: getResponsiveFontSizePx(11),
       color: "#cccccc",
       align: "center",
-      wordWrap: { width: CardTooltip.TOOLTIP_WIDTH - CardTooltip.PADDING * 2 },
+      wordWrap: {
+        width: CardTooltip.TOOLTIP_WIDTH - CardTooltip.PADDING * 2,
+      },
     });
     this.reasonText.setOrigin(0.5);
     this.add(this.reasonText);
