@@ -1,5 +1,5 @@
-import { Game } from 'phaser';
-import { GameConfig } from './game/GameConfig';
+import { Game } from "phaser";
+import { GameConfig } from "./game/GameConfig";
 
 // Create and start the Phaser game
 const game = new Game(GameConfig);

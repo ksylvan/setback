@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { CardThemeManager } from './CardThemeManager';
-import { CardTheme } from '@/components/CardSprite';
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CardTheme } from "@/components/CardSprite";
+import { CardThemeManager } from "./CardThemeManager";
 
 // Mock localStorage
 const mockLocalStorage = {
@@ -10,12 +10,12 @@ const mockLocalStorage = {
   clear: vi.fn(),
 };
 
-Object.defineProperty(window, 'localStorage', {
+Object.defineProperty(window, "localStorage", {
   value: mockLocalStorage,
   writable: true,
 });
 
-describe('CardThemeManager', () => {
+describe("CardThemeManager", () => {
   let themeManager: CardThemeManager;
 
   beforeEach(() => {
@@ -23,26 +23,26 @@ describe('CardThemeManager', () => {
     themeManager = new CardThemeManager();
   });
 
-  describe('initialization', () => {
-    it('should initialize with default themes', () => {
+  describe("initialization", () => {
+    it("should initialize with default themes", () => {
       const themes = themeManager.getAllThemes();
       expect(themes.length).toBeGreaterThan(0);
-      
+
       // Should have classic theme
-      const classic = themeManager.getTheme('classic');
+      const classic = themeManager.getTheme("classic");
       expect(classic).toBeDefined();
-      expect(classic?.name).toBe('Classic');
+      expect(classic?.name).toBe("Classic");
     });
 
-    it('should set classic as default theme', () => {
+    it("should set classic as default theme", () => {
       const currentTheme = themeManager.getCurrentTheme();
-      expect(currentTheme.id).toBe('classic');
+      expect(currentTheme.id).toBe("classic");
     });
 
-    it('should have all required default themes', () => {
-      const expectedThemes = ['classic', 'modern', 'neon', 'vintage', 'high_contrast'];
-      
-      expectedThemes.forEach(themeId => {
+    it("should have all required default themes", () => {
+      const expectedThemes = ["classic", "modern", "neon", "vintage", "high_contrast"];
+
+      expectedThemes.forEach((themeId) => {
         const theme = themeManager.getTheme(themeId);
         expect(theme).toBeDefined();
         expect(theme?.id).toBe(themeId);
@@ -50,268 +50,265 @@ describe('CardThemeManager', () => {
     });
   });
 
-  describe('theme management', () => {
-    it('should add new themes', () => {
+  describe("theme management", () => {
+    it("should add new themes", () => {
       const customTheme: CardTheme = {
-        id: 'custom',
-        name: 'Custom Theme',
-        cardBack: 'custom_back',
+        id: "custom",
+        name: "Custom Theme",
+        cardBack: "custom_back",
         cardWidth: 100,
         cardHeight: 140,
         suits: {
-          hearts: '♥',
-          diamonds: '♦',
-          clubs: '♣',
-          spades: '♠'
+          hearts: "♥",
+          diamonds: "♦",
+          clubs: "♣",
+          spades: "♠",
         },
         colors: {
-          red: 0xFF0000,
+          red: 0xff0000,
           black: 0x000000,
-          background: 0xFFFFFF,
+          background: 0xffffff,
           border: 0x333333,
-          highlight: 0x4A90E2,
-          disabled: 0x888888
-        }
+          highlight: 0x4a90e2,
+          disabled: 0x888888,
+        },
       };
 
       themeManager.addTheme(customTheme);
-      const retrieved = themeManager.getTheme('custom');
+      const retrieved = themeManager.getTheme("custom");
       expect(retrieved).toEqual(customTheme);
     });
 
-    it('should set current theme', () => {
-      const success = themeManager.setCurrentTheme('modern');
+    it("should set current theme", () => {
+      const success = themeManager.setCurrentTheme("modern");
       expect(success).toBe(true);
-      
+
       const currentTheme = themeManager.getCurrentTheme();
-      expect(currentTheme.id).toBe('modern');
+      expect(currentTheme.id).toBe("modern");
     });
 
-    it('should reject invalid theme IDs', () => {
-      const success = themeManager.setCurrentTheme('nonexistent');
+    it("should reject invalid theme IDs", () => {
+      const success = themeManager.setCurrentTheme("nonexistent");
       expect(success).toBe(false);
-      
+
       // Should remain on previous theme
       const currentTheme = themeManager.getCurrentTheme();
-      expect(currentTheme.id).toBe('classic');
+      expect(currentTheme.id).toBe("classic");
     });
 
-    it('should get theme names for UI', () => {
+    it("should get theme names for UI", () => {
       const themeNames = themeManager.getThemeNames();
       expect(themeNames.length).toBeGreaterThan(0);
-      
-      const classicTheme = themeNames.find(t => t.id === 'classic');
-      expect(classicTheme).toEqual({ id: 'classic', name: 'Classic' });
+
+      const classicTheme = themeNames.find((t) => t.id === "classic");
+      expect(classicTheme).toEqual({ id: "classic", name: "Classic" });
     });
   });
 
-  describe('custom theme creation', () => {
-    it('should create custom theme based on existing theme', () => {
-      const customTheme = themeManager.createCustomTheme(
-        'my_theme',
-        'My Theme',
-        'classic',
-        {
-          colors: {
-            red: 0xFF0000,
-            black: 0x000000,
-            background: 0x00FF00,
-            border: 0x333333,
-            highlight: 0x4A90E2,
-            disabled: 0x888888
-          }
-        }
-      );
+  describe("custom theme creation", () => {
+    it("should create custom theme based on existing theme", () => {
+      const customTheme = themeManager.createCustomTheme("my_theme", "My Theme", "classic", {
+        colors: {
+          red: 0xff0000,
+          black: 0x000000,
+          background: 0x00ff00,
+          border: 0x333333,
+          highlight: 0x4a90e2,
+          disabled: 0x888888,
+        },
+      });
 
-      expect(customTheme.id).toBe('my_theme');
-      expect(customTheme.name).toBe('My Theme');
-      expect(customTheme.colors.background).toBe(0x00FF00);
-      
+      expect(customTheme.id).toBe("my_theme");
+      expect(customTheme.name).toBe("My Theme");
+      expect(customTheme.colors.background).toBe(0x00ff00);
+
       // Should inherit other properties from base theme
-      const classic = themeManager.getTheme('classic')!;
+      const classic = themeManager.getTheme("classic");
+      if (!classic) throw new Error("Classic theme not found");
       expect(customTheme.cardWidth).toBe(classic.cardWidth);
     });
   });
 
-  describe('theme validation', () => {
-    it('should validate complete theme configuration', () => {
+  describe("theme validation", () => {
+    it("should validate complete theme configuration", () => {
       const validTheme: CardTheme = {
-        id: 'valid',
-        name: 'Valid Theme',
-        cardBack: 'valid_back',
+        id: "valid",
+        name: "Valid Theme",
+        cardBack: "valid_back",
         cardWidth: 90,
         cardHeight: 130,
         suits: {
-          hearts: '♥',
-          diamonds: '♦',
-          clubs: '♣',
-          spades: '♠'
+          hearts: "♥",
+          diamonds: "♦",
+          clubs: "♣",
+          spades: "♠",
         },
         colors: {
-          red: 0xFF0000,
+          red: 0xff0000,
           black: 0x000000,
-          background: 0xFFFFFF,
+          background: 0xffffff,
           border: 0x333333,
-          highlight: 0x4A90E2,
-          disabled: 0x888888
-        }
+          highlight: 0x4a90e2,
+          disabled: 0x888888,
+        },
       };
 
       const errors = themeManager.validateTheme(validTheme);
       expect(errors).toHaveLength(0);
     });
 
-    it('should detect missing required fields', () => {
+    it("should detect missing required fields", () => {
       const invalidTheme = {
-        name: 'Invalid Theme'
+        name: "Invalid Theme",
         // Missing id and other required fields
       };
 
       const errors = themeManager.validateTheme(invalidTheme);
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors.some(error => error.includes('ID is required'))).toBe(true);
+      expect(errors.some((error) => error.includes("ID is required"))).toBe(true);
     });
 
-    it('should validate card dimensions', () => {
+    it("should validate card dimensions", () => {
       const invalidDimensions = {
-        id: 'test',
-        name: 'Test',
-        cardWidth: 25,  // Too small
+        id: "test",
+        name: "Test",
+        cardWidth: 25, // Too small
         cardHeight: 400, // Too large
         colors: {
-          red: 0xFF0000,
+          red: 0xff0000,
           black: 0x000000,
-          background: 0xFFFFFF,
+          background: 0xffffff,
           border: 0x333333,
-          highlight: 0x4A90E2,
-          disabled: 0x888888
-        }
+          highlight: 0x4a90e2,
+          disabled: 0x888888,
+        },
       };
 
       const errors = themeManager.validateTheme(invalidDimensions);
-      expect(errors.some(error => error.includes('width'))).toBe(true);
-      expect(errors.some(error => error.includes('height'))).toBe(true);
+      expect(errors.some((error) => error.includes("width"))).toBe(true);
+      expect(errors.some((error) => error.includes("height"))).toBe(true);
     });
 
-    it('should validate color configuration', () => {
+    it("should validate color configuration", () => {
       const missingColors: Partial<CardTheme> = {
-        id: 'test',
-        name: 'Test',
+        id: "test",
+        name: "Test",
         colors: {
-          red: 0xFF0000,
+          red: 0xff0000,
           // Missing other required colors: black, background, border, highlight, disabled
-        } as any
+        } as any,
       };
 
       const errors = themeManager.validateTheme(missingColors);
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors.some(error => error.includes('Missing required color'))).toBe(true);
+      expect(errors.some((error) => error.includes("Missing required color"))).toBe(true);
     });
   });
 
-  describe('theme persistence', () => {
-    it('should save theme preferences to localStorage', () => {
-      themeManager.setCurrentTheme('modern');
+  describe("theme persistence", () => {
+    it("should save theme preferences to localStorage", () => {
+      themeManager.setCurrentTheme("modern");
       themeManager.saveThemePreferences();
 
       expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'setback_theme_preferences',
+        "setback_theme_preferences",
         expect.stringContaining('"currentThemeId":"modern"')
       );
     });
 
-    it('should load theme preferences from localStorage', () => {
+    it("should load theme preferences from localStorage", () => {
       const preferences = {
-        currentThemeId: 'vintage',
-        customThemes: []
+        currentThemeId: "vintage",
+        customThemes: [],
       };
 
       mockLocalStorage.getItem.mockReturnValue(JSON.stringify(preferences));
-      
+
       themeManager.loadThemePreferences();
-      
+
       const currentTheme = themeManager.getCurrentTheme();
-      expect(currentTheme.id).toBe('vintage');
+      expect(currentTheme.id).toBe("vintage");
     });
 
-    it('should handle invalid localStorage data gracefully', () => {
-      mockLocalStorage.getItem.mockReturnValue('invalid json');
-      
+    it("should handle invalid localStorage data gracefully", () => {
+      mockLocalStorage.getItem.mockReturnValue("invalid json");
+
       // Should not throw error
       expect(() => themeManager.loadThemePreferences()).not.toThrow();
-      
+
       // Should remain on default theme
       const currentTheme = themeManager.getCurrentTheme();
-      expect(currentTheme.id).toBe('classic');
+      expect(currentTheme.id).toBe("classic");
     });
   });
 
-  describe('theme export/import', () => {
-    it('should export theme as JSON', () => {
-      const exported = themeManager.exportTheme('classic');
+  describe("theme export/import", () => {
+    it("should export theme as JSON", () => {
+      const exported = themeManager.exportTheme("classic");
       expect(exported).toBeTruthy();
-      
-      const parsed = JSON.parse(exported!);
-      expect(parsed.id).toBe('classic');
-      expect(parsed.name).toBe('Classic');
+
+      if (!exported) throw new Error("Export failed");
+      const parsed = JSON.parse(exported);
+      expect(parsed.id).toBe("classic");
+      expect(parsed.name).toBe("Classic");
     });
 
-    it('should return null for non-existent theme export', () => {
-      const exported = themeManager.exportTheme('nonexistent');
+    it("should return null for non-existent theme export", () => {
+      const exported = themeManager.exportTheme("nonexistent");
       expect(exported).toBeNull();
     });
 
-    it('should import valid theme JSON', () => {
+    it("should import valid theme JSON", () => {
       const themeJson = {
-        id: 'imported',
-        name: 'Imported Theme',
-        cardBack: 'imported_back',
+        id: "imported",
+        name: "Imported Theme",
+        cardBack: "imported_back",
         cardWidth: 90,
         cardHeight: 130,
         suits: {
-          hearts: '♥',
-          diamonds: '♦',
-          clubs: '♣',
-          spades: '♠'
+          hearts: "♥",
+          diamonds: "♦",
+          clubs: "♣",
+          spades: "♠",
         },
         colors: {
-          red: 0xFF0000,
+          red: 0xff0000,
           black: 0x000000,
-          background: 0xFFFFFF,
+          background: 0xffffff,
           border: 0x333333,
-          highlight: 0x4A90E2,
-          disabled: 0x888888
-        }
+          highlight: 0x4a90e2,
+          disabled: 0x888888,
+        },
       };
 
       const result = themeManager.importTheme(JSON.stringify(themeJson));
       expect(result.success).toBe(true);
       expect(result.errors).toHaveLength(0);
-      
-      const imported = themeManager.getTheme('imported');
+
+      const imported = themeManager.getTheme("imported");
       expect(imported).toBeDefined();
     });
 
-    it('should reject invalid theme JSON', () => {
+    it("should reject invalid theme JSON", () => {
       const invalidJson = '{"id": "test"}'; // Missing required fields
-      
+
       const result = themeManager.importTheme(invalidJson);
       expect(result.success).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
     });
 
-    it('should handle malformed JSON', () => {
+    it("should handle malformed JSON", () => {
       const malformedJson = '{"id": "test"'; // Invalid JSON
-      
+
       const result = themeManager.importTheme(malformedJson);
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Invalid JSON format');
+      expect(result.errors).toContain("Invalid JSON format");
     });
   });
 
-  describe('theme preview and accessibility', () => {
-    it('should provide theme preview data', () => {
-      const preview = themeManager.getThemePreview('classic');
+  describe("theme preview and accessibility", () => {
+    it("should provide theme preview data", () => {
+      const preview = themeManager.getThemePreview("classic");
       expect(preview).toBeDefined();
       expect(preview?.background).toMatch(/^#[0-9a-f]{6}$/i);
       expect(preview?.border).toMatch(/^#[0-9a-f]{6}$/i);
@@ -319,32 +316,32 @@ describe('CardThemeManager', () => {
       expect(preview?.blackColor).toMatch(/^#[0-9a-f]{6}$/i);
     });
 
-    it('should return null for invalid theme preview', () => {
-      const preview = themeManager.getThemePreview('nonexistent');
+    it("should return null for invalid theme preview", () => {
+      const preview = themeManager.getThemePreview("nonexistent");
       expect(preview).toBeNull();
     });
 
-    it('should calculate contrast ratios', () => {
-      const contrastInfo = themeManager.getContrastInfo('classic');
+    it("should calculate contrast ratios", () => {
+      const contrastInfo = themeManager.getContrastInfo("classic");
       expect(contrastInfo).toBeDefined();
-      expect(typeof contrastInfo?.backgroundToRed).toBe('number');
-      expect(typeof contrastInfo?.backgroundToBlack).toBe('number');
-      expect(typeof contrastInfo?.accessible).toBe('boolean');
+      expect(typeof contrastInfo?.backgroundToRed).toBe("number");
+      expect(typeof contrastInfo?.backgroundToBlack).toBe("number");
+      expect(typeof contrastInfo?.accessible).toBe("boolean");
     });
 
-    it('should identify high contrast theme as accessible', () => {
-      const contrastInfo = themeManager.getContrastInfo('high_contrast');
+    it("should identify high contrast theme as accessible", () => {
+      const contrastInfo = themeManager.getContrastInfo("high_contrast");
       expect(contrastInfo?.accessible).toBe(true);
     });
   });
 
-  describe('theme reset', () => {
-    it('should reset to default theme', () => {
-      themeManager.setCurrentTheme('modern');
-      expect(themeManager.getCurrentTheme().id).toBe('modern');
-      
+  describe("theme reset", () => {
+    it("should reset to default theme", () => {
+      themeManager.setCurrentTheme("modern");
+      expect(themeManager.getCurrentTheme().id).toBe("modern");
+
       themeManager.resetToDefault();
-      expect(themeManager.getCurrentTheme().id).toBe('classic');
+      expect(themeManager.getCurrentTheme().id).toBe("classic");
     });
   });
 });

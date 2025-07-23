@@ -1,4 +1,4 @@
-import { ICard, Suit, Rank } from "@/types/game";
+import { type ICard, Rank, Suit } from "@/types/game";
 
 export class Card implements ICard {
   public suit: Suit | null;
@@ -57,11 +57,14 @@ export class Card implements ICard {
 
   /**
    * Check if this card is trump based on the trump suit
+   * Includes joker, trump suit cards, and off-jack
    */
   isTrump(trumpSuit: Suit | null): boolean {
     if (!trumpSuit) return false;
     if (this.isJoker) return true; // Joker is always trump
-    return this.suit === trumpSuit;
+    if (this.suit === trumpSuit) return true; // Trump suit cards
+    if (this.isOffJack(trumpSuit)) return true; // Off-jack is considered trump
+    return false;
   }
 
   /**
@@ -78,36 +81,88 @@ export class Card implements ICard {
    * Check if this card's suit is the same color as the given suit
    */
   isSameColor(suit: Suit): boolean {
-    if (this.isJoker) return false;
+    if (this.isJoker || this.suit === null) return false;
 
     const redSuits = [Suit.HEARTS, Suit.DIAMONDS];
-    const blackSuits = [Suit.CLUBS, Suit.SPADES];
 
-    const thisIsRed = redSuits.includes(this.suit!);
+    const thisIsRed = redSuits.includes(this.suit);
     const otherIsRed = redSuits.includes(suit);
 
     return thisIsRed === otherIsRed;
   }
 
   /**
-   * Compare this card to another for trump ordering
+   * Compare this card to another for trump ordering (trick-taking)
    * Returns: positive if this > other, negative if this < other, 0 if equal
+   *
+   * Trump hierarchy (high to low):
+   * 1. Joker (highest trump)
+   * 2. Jack of Trump Suit
+   * 3. Off-Jack (jack of same color as trump)
+   * 4. Ace of Trump
+   * 5. Other Trump Cards (K, Q, 10, 9, 8, 7, 6, 5, 4, 3, 2)
    */
   compareForTrump(other: Card, trumpSuit: Suit | null): number {
-    const thisIsTrump = this.isTrump(trumpSuit);
-    const otherIsTrump = other.isTrump(trumpSuit);
+    const thisTrumpValue = this.getTrumpValue(trumpSuit);
+    const otherTrumpValue = other.getTrumpValue(trumpSuit);
 
-    // Trump always beats non-trump
-    if (thisIsTrump && !otherIsTrump) return 1;
-    if (!thisIsTrump && otherIsTrump) return -1;
+    // Compare trump values first
+    if (thisTrumpValue !== otherTrumpValue) {
+      return thisTrumpValue - otherTrumpValue;
+    }
 
-    // If both are trump or both are non-trump, compare by rank
-    if (this.isJoker && !other.isJoker) return 1;
-    if (!this.isJoker && other.isJoker) return -1;
+    // If both are trump (same trump value category), compare within category
+    if (thisTrumpValue > 0) {
+      return this.compareTrumpCards(other, trumpSuit);
+    }
 
-    // Special case: joker counts as 10.5 of trump for trick-taking
+    // If both are non-trump, compare by rank
+    return this.rank - other.rank;
+  }
+
+  /**
+   * Get trump value for hierarchy comparison
+   * Returns: 0 = non-trump, 1 = trump card, 2 = off-jack, 3 = jack of trump, 4 = joker
+   */
+  private getTrumpValue(trumpSuit: Suit | null): number {
+    if (!trumpSuit) return 0;
+
+    if (this.isJoker) return 4; // Highest trump
+    if (this.rank === Rank.JACK && this.suit === trumpSuit) return 3; // Jack of trump
+    if (this.isOffJack(trumpSuit)) return 2; // Off-jack
+    if (this.suit === trumpSuit) return 1; // Regular trump card
+
+    return 0; // Non-trump
+  }
+
+  /**
+   * Compare two trump cards within the same trump category
+   */
+  private compareTrumpCards(other: Card, trumpSuit: Suit | null): number {
+    // Jokers are equal
     if (this.isJoker && other.isJoker) return 0;
 
+    // Jack of trump vs jack of trump (shouldn't happen, but handle it)
+    if (this.rank === Rank.JACK && this.suit === trumpSuit && other.rank === Rank.JACK && other.suit === trumpSuit) {
+      return 0;
+    }
+
+    // Off-jack vs off-jack (different colors) - compare by color hierarchy
+    if (this.isOffJack(trumpSuit) && other.isOffJack(trumpSuit)) {
+      // Use suit order for consistency: HEARTS > DIAMONDS > CLUBS > SPADES
+      const suitOrder = {
+        [Suit.HEARTS]: 4,
+        [Suit.DIAMONDS]: 3,
+        [Suit.CLUBS]: 2,
+        [Suit.SPADES]: 1,
+      };
+      // Both cards are off-jacks, so suits are guaranteed to be non-null
+      const thisSuitValue = this.suit ? suitOrder[this.suit] || 0 : 0;
+      const otherSuitValue = other.suit ? suitOrder[other.suit] || 0 : 0;
+      return thisSuitValue - otherSuitValue;
+    }
+
+    // Regular trump cards - compare by rank
     return this.rank - other.rank;
   }
 
@@ -128,10 +183,7 @@ export class Card implements ICard {
     if (this.isOffJack(trumpSuit)) return true;
 
     // Check if player has any cards of the lead suit
-    const hasLeadSuit = hand.some(
-      (card) =>
-        card.suit === leadSuit && !card.isJoker && !card.isOffJack(trumpSuit)
-    );
+    const hasLeadSuit = hand.some((card) => card.suit === leadSuit && !card.isJoker && !card.isOffJack(trumpSuit));
 
     // If player has lead suit cards, this card can't follow unless it's also lead suit
     if (hasLeadSuit) return this.suit === leadSuit;

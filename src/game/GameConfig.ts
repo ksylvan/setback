@@ -1,8 +1,7 @@
-import { AUTO, Game } from "phaser";
-import Phaser from "phaser";
+import Phaser, { AUTO } from "phaser";
 import { BootScene } from "@/scenes/BootScene";
-import { MenuScene } from "@/scenes/MenuScene";
 import { GameScene } from "@/scenes/GameScene";
+import { MenuScene } from "@/scenes/MenuScene";
 
 export const GameConfig: Phaser.Types.Core.GameConfig = {
   type: AUTO,

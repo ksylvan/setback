@@ -1,5 +1,5 @@
-import { Card } from "@/entities/Card";
-import { Suit, Rank } from "@/types/game";
+import type { Card } from "@/entities/Card";
+import { Rank, Suit } from "@/types/game";
 
 /**
  * CardTheme interface for skinnable card appearances
@@ -46,13 +46,7 @@ export class CardSprite extends Phaser.GameObjects.Container {
   private selectedScale: number = 1.1;
   private animationDuration: number = 150;
 
-  constructor(
-    scene: Phaser.Scene,
-    x: number,
-    y: number,
-    card: Card,
-    theme: CardTheme
-  ) {
+  constructor(scene: Phaser.Scene, x: number, y: number, card: Card, theme: CardTheme) {
     super(scene, x, y);
 
     this.card = card;
@@ -73,14 +67,7 @@ export class CardSprite extends Phaser.GameObjects.Container {
     const { cardWidth, cardHeight, colors } = this.theme;
 
     // Highlight overlay (initially invisible)
-    this.highlight = this.scene.add.rectangle(
-      0,
-      0,
-      cardWidth,
-      cardHeight,
-      colors.highlight,
-      0
-    );
+    this.highlight = this.scene.add.rectangle(0, 0, cardWidth, cardHeight, colors.highlight, 0);
     this.add(this.highlight);
 
     // Card back (for face-down cards)
@@ -227,27 +214,10 @@ export class CardSprite extends Phaser.GameObjects.Container {
     }
   }
 
-  private getSuitSymbol(): string {
-    switch (this.card.suit) {
-      case Suit.HEARTS:
-        return "♥";
-      case Suit.DIAMONDS:
-        return "♦";
-      case Suit.CLUBS:
-        return "♣";
-      case Suit.SPADES:
-        return "♠";
-      default:
-        return "?";
-    }
-  }
-
   /**
    * Apply theme-specific visual effects
    */
   private applyThemeEffects(): void {
-    const { colors } = this.theme;
-
     // Apply theme-based tinting and effects
     switch (this.theme.id) {
       case "neon":
@@ -356,11 +326,7 @@ export class CardSprite extends Phaser.GameObjects.Container {
     });
   }
 
-  public playDealAnimation(
-    fromX: number,
-    fromY: number,
-    duration: number = 500
-  ): Promise<void> {
+  public playDealAnimation(fromX: number, fromY: number, duration: number = 500): Promise<void> {
     this.setPosition(fromX, fromY);
     this.setScale(0.5);
     this.setAlpha(0);

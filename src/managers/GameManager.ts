@@ -1,16 +1,16 @@
 import { EventEmitter } from "events";
-import { Card } from "@/entities/Card";
+import type { Card } from "@/entities/Card";
 import { Deck } from "@/entities/Deck";
 import {
-  Bid,
-  GameConfig,
+  type Bid,
+  type GameConfig,
   GamePhase,
-  GameState,
-  Partnership,
-  Player,
+  type GameState,
+  type Partnership,
+  type Player,
   PlayerPosition,
   Suit,
-  Trick,
+  type Trick,
 } from "@/types/game";
 
 export class GameManager extends EventEmitter {
@@ -54,12 +54,7 @@ export class GameManager extends EventEmitter {
    * Create players based on config
    */
   private createPlayers(): Player[] {
-    const positions = [
-      PlayerPosition.SOUTH,
-      PlayerPosition.WEST,
-      PlayerPosition.NORTH,
-      PlayerPosition.EAST,
-    ];
+    const positions = [PlayerPosition.SOUTH, PlayerPosition.WEST, PlayerPosition.NORTH, PlayerPosition.EAST];
 
     return this.config.players.map((playerConfig, index) => ({
       id: `player_${index}`,
@@ -76,17 +71,26 @@ export class GameManager extends EventEmitter {
    * Create partnerships (North/South vs East/West)
    */
   private createPartnerships(players: Player[]): Partnership[] {
+    const northPlayer = players.find((p) => p.position === PlayerPosition.NORTH);
+    const southPlayer = players.find((p) => p.position === PlayerPosition.SOUTH);
+    const eastPlayer = players.find((p) => p.position === PlayerPosition.EAST);
+    const westPlayer = players.find((p) => p.position === PlayerPosition.WEST);
+
+    if (!northPlayer || !southPlayer || !eastPlayer || !westPlayer) {
+      throw new Error("Missing required player positions");
+    }
+
     return [
       {
         id: "ns_partnership",
-        player1Id: players.find((p) => p.position === PlayerPosition.NORTH)!.id,
-        player2Id: players.find((p) => p.position === PlayerPosition.SOUTH)!.id,
+        player1Id: northPlayer.id,
+        player2Id: southPlayer.id,
         score: 0,
       },
       {
         id: "ew_partnership",
-        player1Id: players.find((p) => p.position === PlayerPosition.EAST)!.id,
-        player2Id: players.find((p) => p.position === PlayerPosition.WEST)!.id,
+        player1Id: eastPlayer.id,
+        player2Id: westPlayer.id,
         score: 0,
       },
     ];
@@ -96,10 +100,10 @@ export class GameManager extends EventEmitter {
    * Start a new game
    */
   startGame(): void {
-    console.log('🎮 GameManager.startGame() called');
+    console.log("🎮 GameManager.startGame() called");
     this.gameState.gamePhase = GamePhase.DEALING;
     this.dealHand();
-    console.log('🎮 Emitting gameStarted event');
+    console.log("🎮 Emitting gameStarted event");
     this.emit("gameStarted", this.gameState);
   }
 
@@ -110,7 +114,9 @@ export class GameManager extends EventEmitter {
     this.deck.reset();
 
     // Clear all hands
-    this.gameState.players.forEach((player) => (player.hand = []));
+    this.gameState.players.forEach((player) => {
+      player.hand = [];
+    });
 
     // Deal 6 cards to each player
     for (let i = 0; i < 6; i++) {
@@ -127,7 +133,7 @@ export class GameManager extends EventEmitter {
       this.sortHand(player.hand);
     });
 
-    console.log('🎮 Cards dealt, starting bidding...');
+    console.log("🎮 Cards dealt, starting bidding...");
     this.startBidding();
   }
 
@@ -149,7 +155,7 @@ export class GameManager extends EventEmitter {
    * Start the bidding phase
    */
   private startBidding(): void {
-    console.log('🎯 GameManager.startBidding() called');
+    console.log("🎯 GameManager.startBidding() called");
     this.gameState.gamePhase = GamePhase.BIDDING;
     this.gameState.currentHand.biddingPhase = true;
     this.gameState.currentHand.currentBid = null;
@@ -160,8 +166,8 @@ export class GameManager extends EventEmitter {
     this.gameState.currentHand.currentPlayerIndex = (dealerIndex + 1) % 4;
 
     const currentPlayer = this.gameState.players[this.gameState.currentHand.currentPlayerIndex];
-    console.log('🎯 Bidding starts with:', currentPlayer.name, 'isHuman:', currentPlayer.isHuman);
-    console.log('🎯 Emitting biddingStarted event');
+    console.log("🎯 Bidding starts with:", currentPlayer.name, "isHuman:", currentPlayer.isHuman);
+    console.log("🎯 Emitting biddingStarted event");
     this.emit("biddingStarted", this.gameState);
   }
 
@@ -173,8 +179,7 @@ export class GameManager extends EventEmitter {
       return false;
     }
 
-    const player =
-      this.gameState.players[this.gameState.currentHand.currentPlayerIndex];
+    const player = this.gameState.players[this.gameState.currentHand.currentPlayerIndex];
     if (player.id !== playerId) {
       return false; // Not this player's turn
     }
@@ -187,11 +192,11 @@ export class GameManager extends EventEmitter {
 
     // Validate bid
     if (!bid.passed) {
-      const currentBid = this.gameState.currentHand.currentBid;
-      if (bidAmount! < 2 || bidAmount! > 6) {
+      if (bidAmount === null || bidAmount < 2 || bidAmount > 6) {
         return false; // Invalid bid amount
       }
-      if (currentBid && bidAmount! <= currentBid.amount) {
+      const currentBid = this.gameState.currentHand.currentBid;
+      if (currentBid && bidAmount <= currentBid.amount) {
         return false; // Bid too low
       }
     }
@@ -210,8 +215,7 @@ export class GameManager extends EventEmitter {
     }
 
     // Move to next player
-    this.gameState.currentHand.currentPlayerIndex =
-      (this.gameState.currentHand.currentPlayerIndex + 1) % 4;
+    this.gameState.currentHand.currentPlayerIndex = (this.gameState.currentHand.currentPlayerIndex + 1) % 4;
 
     this.emit("bidPlaced", bid, this.gameState);
 
@@ -244,7 +248,7 @@ export class GameManager extends EventEmitter {
     }
 
     const bids = this.gameState.currentHand.bids;
-    
+
     // If we haven't had 4 bids yet, continue bidding
     if (bids.length < 4) {
       return false;
@@ -254,7 +258,7 @@ export class GameManager extends EventEmitter {
     // Bidding continues until 3 consecutive passes after a bid
     const lastFourBids = bids.slice(-4);
     const lastThreeBids = bids.slice(-3);
-    
+
     // If the last 3 bids were all passes and there's a current bid, bidding is done
     if (currentBid && lastThreeBids.length === 3 && lastThreeBids.every((bid: Bid) => bid.passed)) {
       return true;
@@ -276,7 +280,8 @@ export class GameManager extends EventEmitter {
 
     // If no bid was made, dealer gets stuck with 2
     if (!finalBid) {
-      const dealer = this.gameState.players.find((p) => p.isDealer)!;
+      const dealer = this.gameState.players.find((p) => p.isDealer);
+      if (!dealer) throw new Error("No dealer found");
       finalBid = {
         playerId: dealer.id,
         amount: 2,
@@ -289,11 +294,9 @@ export class GameManager extends EventEmitter {
     this.gameState.currentHand.biddingPhase = false;
 
     // Winner of bid leads first trick
-    const bidWinner = this.gameState.players.find(
-      (p) => p.id === finalBid.playerId
-    )!;
-    this.gameState.currentHand.currentPlayerIndex =
-      this.gameState.players.indexOf(bidWinner);
+    const bidWinner = this.gameState.players.find((p) => p.id === finalBid.playerId);
+    if (!bidWinner) throw new Error("Bid winner not found");
+    this.gameState.currentHand.currentPlayerIndex = this.gameState.players.indexOf(bidWinner);
 
     this.emit("biddingEnded", finalBid, this.gameState);
     this.emit("playStarted", this.gameState);
@@ -317,9 +320,7 @@ export class GameManager extends EventEmitter {
    * Get partnership by player ID
    */
   getPartnership(playerId: string): Partnership | undefined {
-    return this.gameState.partnerships.find(
-      (p) => p.player1Id === playerId || p.player2Id === playerId
-    );
+    return this.gameState.partnerships.find((p) => p.player1Id === playerId || p.player2Id === playerId);
   }
 
   /**
@@ -328,10 +329,10 @@ export class GameManager extends EventEmitter {
   playCard(playerId: string, cardId: string): boolean {
     // Validate game phase
     if (this.gameState.gamePhase !== GamePhase.PLAYING) {
-      this.emit('invalidPlay', {
-        reason: 'Not in playing phase',
+      this.emit("invalidPlay", {
+        reason: "Not in playing phase",
         playerId,
-        cardId
+        cardId,
       });
       return false;
     }
@@ -339,21 +340,21 @@ export class GameManager extends EventEmitter {
     // Validate current player
     const currentPlayer = this.gameState.players[this.gameState.currentHand.currentPlayerIndex];
     if (currentPlayer.id !== playerId) {
-      this.emit('invalidPlay', {
-        reason: 'Not your turn',
+      this.emit("invalidPlay", {
+        reason: "Not your turn",
         playerId,
-        cardId
+        cardId,
       });
       return false;
     }
 
     // Find the card in player's hand
-    const cardToPlay = currentPlayer.hand.find(card => card.id === cardId);
+    const cardToPlay = currentPlayer.hand.find((card) => card.id === cardId);
     if (!cardToPlay) {
-      this.emit('invalidPlay', {
-        reason: 'Card not found in player hand',
+      this.emit("invalidPlay", {
+        reason: "Card not found in player hand",
         playerId,
-        cardId
+        cardId,
       });
       return false;
     }
@@ -375,10 +376,10 @@ export class GameManager extends EventEmitter {
   private validateCardPlay(player: Player, card: Card): boolean {
     // Special rule: Joker cannot be led as first card
     if (card.isJoker && this.gameState.currentHand.trumpSuit === null) {
-      this.emit('invalidPlay', {
-        reason: 'Joker cannot be led as first card',
+      this.emit("invalidPlay", {
+        reason: "Joker cannot be led as first card",
         playerId: player.id,
-        cardId: card.id
+        cardId: card.id,
       });
       return false;
     }
@@ -387,12 +388,12 @@ export class GameManager extends EventEmitter {
     if (this.gameState.currentHand.currentTrick && this.gameState.currentHand.currentTrick.cards.length > 0) {
       const leadSuit = this.gameState.currentHand.currentTrick.leadSuit;
       const trumpSuit = this.gameState.currentHand.trumpSuit;
-      
+
       if (!card.canFollow(leadSuit, player.hand, trumpSuit)) {
-        this.emit('invalidPlay', {
-          reason: 'Must follow lead suit when possible',
+        this.emit("invalidPlay", {
+          reason: "Must follow lead suit when possible",
           playerId: player.id,
-          cardId: card.id
+          cardId: card.id,
         });
         return false;
       }
@@ -406,7 +407,7 @@ export class GameManager extends EventEmitter {
    */
   private executeCardPlay(player: Player, card: Card): void {
     // Remove card from player's hand
-    const cardIndex = player.hand.findIndex(c => c.id === card.id);
+    const cardIndex = player.hand.findIndex((c) => c.id === card.id);
     player.hand.splice(cardIndex, 1);
 
     // Establish trump suit if this is the first card
@@ -421,13 +422,13 @@ export class GameManager extends EventEmitter {
     this.advanceGameState();
 
     // Emit events for UI updates
-    this.emit('cardPlayed', {
+    this.emit("cardPlayed", {
       playerId: player.id,
       card: card,
-      trickState: this.gameState.currentHand.currentTrick
+      trickState: this.gameState.currentHand.currentTrick,
     });
 
-    this.emit('gameStateUpdated', this.gameState);
+    this.emit("gameStateUpdated", this.gameState);
   }
 
   /**
@@ -435,7 +436,7 @@ export class GameManager extends EventEmitter {
    */
   private establishTrumpSuit(firstCard: Card): void {
     this.gameState.currentHand.trumpSuit = firstCard.suit;
-    this.emit('trumpEstablished', firstCard.suit);
+    this.emit("trumpEstablished", firstCard.suit);
   }
 
   /**
@@ -447,15 +448,15 @@ export class GameManager extends EventEmitter {
       this.gameState.currentHand.currentTrick = {
         id: `trick_${this.gameState.currentHand.tricks.length}`,
         cards: [],
-        winner: '', // Will be determined when trick is complete
-        leadSuit: card.suit || Suit.HEARTS // Fallback for joker, though it shouldn't be first
+        winner: "", // Will be determined when trick is complete
+        leadSuit: card.suit || Suit.HEARTS, // Fallback for joker, though it shouldn't be first
       };
     }
 
     // Add the card to the trick
     this.gameState.currentHand.currentTrick.cards.push({
       playerId,
-      card
+      card,
     });
   }
 
@@ -463,45 +464,119 @@ export class GameManager extends EventEmitter {
    * Advance game state after a card is played
    */
   private advanceGameState(): void {
-    const currentTrick = this.gameState.currentHand.currentTrick!;
-    
+    const currentTrick = this.gameState.currentHand.currentTrick;
+    if (!currentTrick) throw new Error("No current trick found");
+
     // Check if trick is complete (4 cards played)
     if (currentTrick.cards.length === 4) {
       this.completeTrick();
     } else {
       // Advance to next player
-      this.gameState.currentHand.currentPlayerIndex = 
-        (this.gameState.currentHand.currentPlayerIndex + 1) % 4;
+      this.gameState.currentHand.currentPlayerIndex = (this.gameState.currentHand.currentPlayerIndex + 1) % 4;
     }
   }
 
   /**
-   * Complete the current trick (placeholder for SB-002)
+   * Complete the current trick using proper trump hierarchy evaluation
    */
   private completeTrick(): void {
-    const currentTrick = this.gameState.currentHand.currentTrick!;
-    
-    // For now, just determine winner by simple logic (will be enhanced in SB-002)
-    // This is a placeholder - proper trump evaluation will be in trick-taking story
-    currentTrick.winner = currentTrick.cards[0].playerId;
-    
+    const currentTrick = this.gameState.currentHand.currentTrick;
+    if (!currentTrick) throw new Error("No current trick to complete");
+
+    // Evaluate trick winner using trump hierarchy
+    currentTrick.winner = this.evaluateTrick(currentTrick);
+
     // Move trick to completed tricks
     this.gameState.currentHand.tricks.push(currentTrick);
     this.gameState.currentHand.currentTrick = null;
-    
-    // Winner of trick leads next trick (placeholder logic)
-    const winnerIndex = this.gameState.players.findIndex(p => p.id === currentTrick.winner);
+
+    // Check if hand is complete (6 tricks played)
+    if (this.isHandComplete()) {
+      this.emit("handComplete", this.gameState.currentHand);
+      // Hand completion flow will be handled in SB-003
+    } else {
+      // Winner of trick leads next trick
+      this.startNextTrick(currentTrick.winner);
+    }
+
+    this.emit("trickComplete", currentTrick);
+  }
+
+  /**
+   * Evaluate trick winner based on Setback trump hierarchy rules
+   * Returns the player ID of the trick winner
+   */
+  private evaluateTrick(trick: Trick): string {
+    if (trick.cards.length !== 4) {
+      throw new Error("Trick must have exactly 4 cards to evaluate");
+    }
+
+    const trumpSuit = this.gameState.currentHand.trumpSuit;
+    let winningCard = trick.cards[0];
+
+    // Compare each card to find the highest
+    for (let i = 1; i < trick.cards.length; i++) {
+      const currentCard = trick.cards[i];
+
+      // If current card beats the winning card, update winner
+      if (this.compareCardsForTrick(currentCard.card, winningCard.card, trumpSuit, trick.leadSuit)) {
+        winningCard = currentCard;
+      }
+    }
+
+    return winningCard.playerId;
+  }
+
+  /**
+   * Compare two cards for trick evaluation
+   * Returns true if card1 beats card2
+   */
+  private compareCardsForTrick(card1: Card, card2: Card, trumpSuit: Suit | null, leadSuit: Suit): boolean {
+    const card1IsTrump = card1.isTrump(trumpSuit);
+    const card2IsTrump = card2.isTrump(trumpSuit);
+
+    // Trump always beats non-trump
+    if (card1IsTrump && !card2IsTrump) return true;
+    if (!card1IsTrump && card2IsTrump) return false;
+
+    // If both are trump, use trump hierarchy comparison
+    if (card1IsTrump && card2IsTrump) {
+      return card1.compareForTrump(card2, trumpSuit) > 0;
+    }
+
+    // If neither is trump, only lead suit can win
+    const card1FollowsLead = card1.suit === leadSuit;
+    const card2FollowsLead = card2.suit === leadSuit;
+
+    // Lead suit beats off-suit
+    if (card1FollowsLead && !card2FollowsLead) return true;
+    if (!card1FollowsLead && card2FollowsLead) return false;
+
+    // If both follow lead suit (or both are off-suit), compare by rank
+    return card1.rank > card2.rank;
+  }
+
+  /**
+   * Start the next trick with the specified winner as leader
+   */
+  private startNextTrick(winnerId: string): void {
+    const winnerIndex = this.gameState.players.findIndex((p) => p.id === winnerId);
     this.gameState.currentHand.currentPlayerIndex = winnerIndex;
-    
-    this.emit('trickComplete', currentTrick);
+
+    this.emit("nextTrickStarted", winnerId);
+  }
+
+  /**
+   * Check if the current hand is complete (all 6 tricks played)
+   */
+  private isHandComplete(): boolean {
+    return this.gameState.currentHand.tricks.length >= 6;
   }
 
   /**
    * Check if game is over
    */
   isGameOver(): boolean {
-    return this.gameState.partnerships.some(
-      (p) => p.score >= this.config.targetScore
-    );
+    return this.gameState.partnerships.some((p) => p.score >= this.config.targetScore);
   }
 }
