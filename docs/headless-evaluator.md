@@ -184,7 +184,7 @@ class HeadlessGameManager extends GameManager {
 
 ### Dev Agent Record
 
-**Phase 1: Core Infrastructure (Days 1-3)**
+#### Phase 1: Core Infrastructure (Days 1-3)
 
 - [ ] Create HeadlessGameManager class extending GameManager with data capture
 - [ ] Implement TournamentConfig interface and validation logic
@@ -193,7 +193,7 @@ class HeadlessGameManager extends GameManager {
 - [ ] Add basic tournament execution loop with progress reporting
 - [ ] Write unit tests for core tournament infrastructure
 
-**Phase 2: Tournament Logic (Days 4-6)**
+#### Phase 2: Tournament Logic (Days 4-6)
 
 - [ ] Implement round-robin tournament format with partnership rotation
 - [ ] Build ParallelExecutor for multi-threaded game execution
@@ -202,7 +202,7 @@ class HeadlessGameManager extends GameManager {
 - [ ] Implement real-time statistics calculation and progress updates
 - [ ] Integration testing with existing AI and game systems
 
-**Phase 3: Analysis & Reporting (Days 7-9)**
+#### Phase 3: Analysis & Reporting (Days 7-9)
 
 - [ ] Build ReportGenerator with statistical analysis algorithms
 - [ ] Implement multiple output formats (JSON, CSV, HTML dashboard)
@@ -211,7 +211,7 @@ class HeadlessGameManager extends GameManager {
 - [ ] Build data visualization components for HTML reports
 - [ ] Performance testing and optimization for 1000+ game runs
 
-**Phase 4: Validation & Polish (Days 10-11)**
+#### Phase 4: Validation & Polish (Days 10-11)
 
 - [ ] Comprehensive tournament testing with full AI personality matrix
 - [ ] Validate statistical significance and result reproducibility
