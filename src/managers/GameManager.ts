@@ -657,10 +657,9 @@ export class GameManager extends EventEmitter {
     // Trigger scoring phase
     this.scoreHand();
 
-    // For now, check if game should end or prepare next hand
+    // Check if game should end or prepare next hand
     if (this.checkGameEnd()) {
-      this.gameState.gamePhase = GamePhase.GAME_OVER;
-      this.emit("gameEnded", this.gameState.winner);
+      this.endGame();
     } else {
       // In test environment, don't automatically start next hand
       // This allows tests to inspect the completed hand state
@@ -1020,12 +1019,60 @@ export class GameManager extends EventEmitter {
    * Check if game should end (any partnership has 21+ points)
    */
   private checkGameEnd(): boolean {
-    const winningPartnership = this.gameState.partnerships.find((p) => p.score >= this.config.targetScore);
-    if (winningPartnership) {
-      this.gameState.winner = winningPartnership;
+    const qualifyingPartnerships = this.gameState.partnerships.filter((p) => p.score >= this.config.targetScore);
+
+    if (qualifyingPartnerships.length > 0) {
+      this.gameState.winner = this.declareWinner();
       return true;
     }
     return false;
+  }
+
+  /**
+   * Determine the winning partnership with proper edge case handling
+   */
+  private declareWinner(): Partnership {
+    // Find all partnerships that have reached the target score
+    const qualifyingPartnerships = this.gameState.partnerships.filter((p) => p.score >= this.config.targetScore);
+
+    if (qualifyingPartnerships.length === 0) {
+      throw new Error("No qualifying partnerships found - cannot declare winner");
+    }
+
+    // If multiple partnerships reach target score, highest score wins
+    const winner = qualifyingPartnerships.reduce((highest, current) => {
+      return current.score > highest.score ? current : highest;
+    });
+
+    console.log(`🏆 Game winner declared: ${winner.id} with ${winner.score} points`);
+    if (qualifyingPartnerships.length > 1) {
+      console.log(`🏆 Multiple partnerships reached target - winner had highest score`);
+    }
+
+    return winner;
+  }
+
+  /**
+   * End the game with proper winner declaration and event emission
+   */
+  private endGame(): void {
+    const winner = this.declareWinner();
+    const finalScores = [...this.gameState.partnerships]; // Create copy of final scores
+
+    this.gameState.winner = winner;
+    this.gameState.gamePhase = GamePhase.GAME_OVER;
+
+    console.log(
+      `🏆 Game ended - Winner: ${winner.id}, Final scores:`,
+      finalScores.map((p) => `${p.id}: ${p.score}`)
+    );
+
+    // Emit enhanced game ended event with winner and final scores
+    this.emit("gameEnded", {
+      winner,
+      finalScores,
+      targetScore: this.config.targetScore,
+    });
   }
 
   /**
