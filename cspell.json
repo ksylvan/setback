@@ -1,0 +1,29 @@
+{
+	"words": [
+		"dblclick",
+		"interruptible",
+		"orientationchange",
+		"Pagat",
+		"skinnable",
+		"Tweens"
+	],
+	"ignorePaths": [
+		"**/node_modules/**",
+		"**/dist/**",
+		"**/build/**",
+		"**/coverage/**",
+		"**/.git/**",
+		"**/.vscode/**",
+		"**/.idea/**",
+		"**/.cache/**",
+		"**/tmp/**",
+		"**/temp/**",
+		".gitignore",
+		"cspell.json",
+		"package-lock.json",
+		"package.json",
+		"tsconfig.json",
+		"vite.config.ts",
+		"vitetest.config.ts"
+	]
+}
