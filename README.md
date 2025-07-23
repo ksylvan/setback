@@ -155,7 +155,7 @@ The project maintains high code quality through comprehensive testing:
 
 ### Current Test Coverage
 
-- **146 tests** across 6 test files
+- **148 tests** across 8 test files
 - **99.15% overall coverage** across all components
 - **98.84% coverage** for GameManager (core game logic)
 - **100% coverage** for Card, Deck, CardSprite, and CardThemeManager
