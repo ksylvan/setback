@@ -1,5 +1,5 @@
-import { Card } from './Card';
-import { Suit, Rank } from '@/types/game';
+import { Rank, Suit } from "@/types/game";
+import { Card } from "./Card";
 
 export class Deck {
   private cards: Card[] = [];
@@ -14,14 +14,14 @@ export class Deck {
    */
   private initializeDeck(): void {
     this.cards = [];
-    
+
     // Add standard 52 cards
     for (const suit of Object.values(Suit)) {
       for (let rank = Rank.TWO; rank <= Rank.ACE; rank++) {
         this.cards.push(new Card(suit, rank));
       }
     }
-    
+
     // Add joker
     this.cards.push(new Card(null, Rank.JOKER));
   }

@@ -1,16 +1,16 @@
+import { beforeEach, describe, expect, it } from "vitest";
 import { Card } from "@/entities/Card";
 import { Rank, Suit } from "@/types/game";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CardTheme } from "./CardSprite";
 
 // Since the CardSprite has complex Phaser dependencies,
 // we'll focus on testing the core logic and interfaces
 describe("CardSprite Interfaces and Logic", () => {
-  let card: Card;
+  let _card: Card;
   let theme: CardTheme;
 
   beforeEach(() => {
-    card = new Card(Suit.HEARTS, Rank.ACE);
+    _card = new Card(Suit.HEARTS, Rank.ACE);
     theme = {
       id: "test",
       name: "Test Theme",

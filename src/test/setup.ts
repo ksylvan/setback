@@ -1,4 +1,4 @@
-import '@testing-library/jest-dom';
+import "@testing-library/jest-dom";
 
 // Global test setup for Vitest
 (global as any).__DEV__ = true;
@@ -14,13 +14,13 @@ global.Phaser = {
   },
   Input: {
     Events: {
-      POINTER_DOWN: 'pointerdown',
-      POINTER_UP: 'pointerup',
+      POINTER_DOWN: "pointerdown",
+      POINTER_UP: "pointerup",
     },
   },
   Scale: {
-    FIT: 'fit',
-    CENTER_BOTH: 'center-both',
+    FIT: "fit",
+    CENTER_BOTH: "center-both",
   },
 } as any;
 
@@ -37,7 +37,7 @@ global.Phaser = {
 
   emit(event: string, ...args: any[]) {
     if (this.events[event]) {
-      this.events[event].forEach(callback => callback(...args));
+      this.events[event].forEach((callback) => callback(...args));
     }
   }
 

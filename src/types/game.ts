@@ -1,11 +1,11 @@
 // Core game enums and types for Setback card game
-import type { Card } from '@/entities/Card';
+import type { Card } from "@/entities/Card";
 
 export enum Suit {
-  HEARTS = 'hearts',
-  DIAMONDS = 'diamonds',
-  CLUBS = 'clubs',
-  SPADES = 'spades',
+  HEARTS = "hearts",
+  DIAMONDS = "diamonds",
+  CLUBS = "clubs",
+  SPADES = "spades",
 }
 
 export enum Rank {
@@ -43,10 +43,10 @@ export interface Player {
 }
 
 export enum PlayerPosition {
-  NORTH = 'north',
-  SOUTH = 'south',
-  EAST = 'east',
-  WEST = 'west',
+  NORTH = "north",
+  SOUTH = "south",
+  EAST = "east",
+  WEST = "west",
 }
 
 export interface Partnership {
@@ -90,12 +90,12 @@ export interface GameState {
 }
 
 export enum GamePhase {
-  SETUP = 'setup',
-  DEALING = 'dealing',
-  BIDDING = 'bidding',
-  PLAYING = 'playing',
-  SCORING = 'scoring',
-  GAME_OVER = 'game_over',
+  SETUP = "setup",
+  DEALING = "dealing",
+  BIDDING = "bidding",
+  PLAYING = "playing",
+  SCORING = "scoring",
+  GAME_OVER = "game_over",
 }
 
 export interface GameConfig {
@@ -109,7 +109,7 @@ export interface GameConfig {
 // Scoring related types
 export interface HandScore {
   low: number; // 1 point - lowest trump card
-  high: number; // 1 point - highest trump card  
+  high: number; // 1 point - highest trump card
   jack: number; // 1 point - jack of trump (if dealt)
   offJack: number; // 1 point - jack of same color as trump (if dealt)
   joker: number; // 1 point - joker (if dealt)
