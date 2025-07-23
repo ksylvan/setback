@@ -80,7 +80,7 @@ export class MenuScene extends Scene {
       .text(
         width / 2,
         height * 0.85,
-        "A trick-taking card game for 4 players in partnerships\\n" + "First partnership to 21 points wins!",
+        "A trick-taking card game for 4 players in partnerships\nFirst partnership to 21 points wins!",
         {
           fontSize: "16px",
           color: "#cccccc",

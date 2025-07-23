@@ -1,6 +1,6 @@
 {
   "name": "setback-card-game",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A multiplayer Setback card game built with Phaser 3 and TypeScript",
   "main": "dist/index.js",
   "directories": {

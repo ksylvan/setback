@@ -101,13 +101,13 @@ export class CardSprite extends Phaser.GameObjects.Container {
    */
   private getCardFaceTexture(): string {
     if (this.card.isJoker) {
-      return "card-joker-red";
+      return "card_joker_red";
     }
 
     const suit = this.card.suit?.toLowerCase();
     const rank = this.getRankDisplay();
 
-    return `card-${suit}-${rank}`;
+    return `card_${suit}_${rank}`;
   }
 
   /**
@@ -210,7 +210,8 @@ export class CardSprite extends Phaser.GameObjects.Container {
       case Rank.KING:
         return "K";
       default:
-        return this.card.rank.toString();
+        // For numbered cards (2-10), use zero-padded format like "02", "03", etc.
+        return this.card.rank.toString().padStart(2, "0");
     }
   }
 
