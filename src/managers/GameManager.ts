@@ -403,6 +403,18 @@ export class GameManager extends EventEmitter {
       return false;
     }
 
+    // Special rule: Joker can only be led if it's the player's last card
+    const isLeadingTrick =
+      !this.gameState.currentHand.currentTrick || this.gameState.currentHand.currentTrick.cards.length === 0;
+    if (card.isJoker && isLeadingTrick && player.hand.length > 1) {
+      this.emit("invalidPlay", {
+        reason: "Joker can only be led if it's your last card",
+        playerId: player.id,
+        cardId: card.id,
+      });
+      return false;
+    }
+
     // If this is not the first card in the trick, check suit following rules
     if (this.gameState.currentHand.currentTrick && this.gameState.currentHand.currentTrick.cards.length > 0) {
       const leadSuit = this.gameState.currentHand.currentTrick.leadSuit;

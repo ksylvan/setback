@@ -145,6 +145,90 @@ describe("GameManager - Card Playing Mechanics (SB-001)", () => {
     });
   });
 
+  describe("Joker Leading Rules", () => {
+    beforeEach(() => {
+      // Establish trump first by having bid winner play a non-joker card
+      const state = gameManager.getGameState();
+      const bidWinner = state.players[state.currentHand.currentPlayerIndex];
+      const trumpCard = bidWinner.hand.find((card) => card.suit && !card.isJoker);
+      if (!trumpCard) throw new Error("No non-joker card found in hand");
+      gameManager.playCard(bidWinner.id, trumpCard.id);
+
+      // Complete the trick with 3 more cards
+      for (let i = 0; i < 3; i++) {
+        const currentState = gameManager.getGameState();
+        const currentPlayer = currentState.players[currentState.currentHand.currentPlayerIndex];
+        const anyCard = currentPlayer.hand[0];
+        gameManager.playCard(currentPlayer.id, anyCard.id);
+      }
+
+      // Clear mock to focus on new trick tests
+      mockEventEmitter.mockClear();
+    });
+
+    it("should prevent joker from being led when player has multiple cards", () => {
+      const state = gameManager.getGameState();
+      const trickLeader = state.players[state.currentHand.currentPlayerIndex];
+
+      // Ensure player has multiple cards and add a joker
+      while (trickLeader.hand.length < 2) {
+        trickLeader.hand.push(new Card(Suit.HEARTS, Rank.TEN));
+      }
+      const joker = new Card(null, Rank.JOKER);
+      trickLeader.hand.push(joker);
+
+      const result = gameManager.playCard(trickLeader.id, joker.id);
+
+      expect(result).toBe(false);
+      expect(mockEventEmitter).toHaveBeenCalledWith("invalidPlay", {
+        reason: "Joker can only be led if it's your last card",
+        playerId: trickLeader.id,
+        cardId: joker.id,
+      });
+    });
+
+    it("should allow joker to be led when it's the player's last card", () => {
+      const state = gameManager.getGameState();
+      const trickLeader = state.players[state.currentHand.currentPlayerIndex];
+
+      // Clear player's hand and leave only a joker
+      trickLeader.hand.length = 0;
+      const joker = new Card(null, Rank.JOKER);
+      trickLeader.hand.push(joker);
+
+      const result = gameManager.playCard(trickLeader.id, joker.id);
+
+      expect(result).toBe(true);
+      expect(mockEventEmitter).toHaveBeenCalledWith("cardPlayed", expect.any(Object));
+    });
+
+    it("should allow joker when following (not leading) regardless of hand size", () => {
+      const state = gameManager.getGameState();
+      const trickLeader = state.players[state.currentHand.currentPlayerIndex];
+
+      // Leader plays a non-joker card
+      const leadCard = trickLeader.hand.find((card) => !card.isJoker) || new Card(Suit.HEARTS, Rank.ACE);
+      trickLeader.hand.push(leadCard);
+      gameManager.playCard(trickLeader.id, leadCard.id);
+
+      // Next player follows with joker (should be allowed regardless of hand size)
+      const nextState = gameManager.getGameState();
+      const follower = nextState.players[nextState.currentHand.currentPlayerIndex];
+
+      // Ensure follower has multiple cards including a joker
+      while (follower.hand.length < 3) {
+        follower.hand.push(new Card(Suit.CLUBS, Rank.KING));
+      }
+      const joker = new Card(null, Rank.JOKER);
+      follower.hand.push(joker);
+
+      const result = gameManager.playCard(follower.id, joker.id);
+
+      expect(result).toBe(true);
+      expect(mockEventEmitter).toHaveBeenCalledWith("cardPlayed", expect.any(Object));
+    });
+  });
+
   describe("Suit Following Rules", () => {
     beforeEach(() => {
       // Establish trump first
