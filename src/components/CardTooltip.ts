@@ -43,14 +43,16 @@ export class CardTooltip extends Phaser.GameObjects.Container {
    * Get a tooltip instance from the pool or create new one
    */
   public static getFromPool(scene: Phaser.Scene): CardTooltip {
-    // Try to get from pool first
-    const pooled = CardTooltip.pool.find((tooltip) => !tooltip.inUse);
+    // Find a tooltip that's not in use AND has the same scene
+    // This prevents using tooltips with stale scene references
+    const pooled = CardTooltip.pool.find((tooltip) => !tooltip.inUse && tooltip.scene === scene && tooltip.scene);
+
     if (pooled) {
       pooled.inUse = true;
       return pooled;
     }
 
-    // Create new instance if pool is empty or all in use
+    // Create new instance if no suitable pooled tooltip found
     const tooltip = new CardTooltip(scene);
     tooltip.inUse = true;
 
@@ -152,7 +154,7 @@ export class CardTooltip extends Phaser.GameObjects.Container {
    * Show tooltip for a specific card with playability information
    */
   public showForCard(card: Card, x: number, y: number, playable: boolean, reason?: string): void {
-    // Safety check: ensure scene is available
+    // Basic safety check: ensure scene exists
     if (!this.scene) {
       console.warn("CardTooltip: Scene not available, cannot show tooltip");
       return;
@@ -357,6 +359,13 @@ export class CardTooltip extends Phaser.GameObjects.Container {
     this.setData("aria-label", description);
     this.setData("role", "tooltip");
     this.setData("aria-live", "polite");
+  }
+
+  /**
+   * Clear tooltips for a specific scene (call when scene is destroyed)
+   */
+  public static clearPoolForScene(scene: Phaser.Scene): void {
+    CardTooltip.pool = CardTooltip.pool.filter((tooltip) => tooltip.scene !== scene);
   }
 
   /**

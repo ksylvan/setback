@@ -477,6 +477,12 @@ export class CardSprite extends Phaser.GameObjects.Container {
    * Show tooltip at specified position
    */
   public showTooltip(x: number, y: number): void {
+    // Safety check: ensure scene is available before creating tooltip
+    if (!this.scene) {
+      console.warn("CardSprite: No scene available for tooltip");
+      return;
+    }
+
     if (this.tooltip) {
       this.hideTooltip();
     }
